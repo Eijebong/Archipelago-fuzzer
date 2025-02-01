@@ -14,6 +14,10 @@ python3 fuzz.py -r 100 -j16 -g alttp -n1
 This will run 100 tests on the alttp world, with 1 YAML per generation, using 16 jobs.
 The output will be available in `./fuzz_output`.
 
+> [!IMPORTANT]
+> This will blow up your `logs` folder in your archipelago installation as
+> every generation generates a file there. Make sure to clean it up regularly
+
 ## Flags
 
 - `-g` selects the apworld to fuzz. If omitted, every run will take a random loaded world
