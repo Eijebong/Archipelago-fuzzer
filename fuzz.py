@@ -374,9 +374,8 @@ if __name__ == "__main__":
         # fork here is way faster because it doesn't have to reload all worlds, but it's only available on some platforms
         # forking for every job also has the advantage of being sure that the process is "clean". Although I don't know if that actually matters
         start_method = "fork" if can_fork else "spawn"
-        maxtasksperchild = 1 if can_fork else None
         multiprocessing.set_start_method(start_method)
-        p = Pool(processes=args.jobs, maxtasksperchild=maxtasksperchild)
+        p = Pool(processes=args.jobs, maxtasksperchild=None)
         START = time.time()
         main(p, args)
     except KeyboardInterrupt:
