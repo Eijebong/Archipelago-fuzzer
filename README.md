@@ -21,7 +21,7 @@ The output will be available in `./fuzz_output`.
 ## Flags
 
 - `-g` selects the apworld to fuzz. If omitted, every run will take a random loaded world
-- `-j` specifies the number of jobs to run in parralel. Defaults to 10, recommended value is the number of cores of your CPU.
+- `-j` specifies the number of jobs to run in parallel. Defaults to 10, recommended value is the number of cores of your CPU.
 - `-r` specifies the number of generations to do. This is a mandatory setting
 - `-n` specifies how many YAMLs to use per generation. Defaults to 1.
 - `-t` specifies the maximum time per generation in seconds. Defaults to 15s.
