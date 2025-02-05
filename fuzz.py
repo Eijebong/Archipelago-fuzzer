@@ -349,10 +349,10 @@ if __name__ == "__main__":
                 error_callback=error,
             )
 
-            while SUBMITTED >= args.jobs * 2:
+            while SUBMITTED >= args.jobs * 10:
                 # Poll the last job to keep the queue running
                 last_job.ready()
-                time.sleep(0.05)
+                time.sleep(0.001)
 
             i += 1
 
