@@ -38,10 +38,11 @@ from Main import main as ERmain
 from Generate import main as GenMain
 from enum import Enum
 import traceback
-
+import threading
 import signal
 import functools
-
+from functools import wraps
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 def exception_in_causes(e, ty):
     if isinstance(e, ty):
@@ -50,23 +51,13 @@ def exception_in_causes(e, ty):
         return exception_in_causes(e.__cause__, ty)
     return False
 
-
-def timeout(seconds=5):
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            def handle_timeout(signum, frame):
-                raise TimeoutError()
-
-            signal.signal(signal.SIGALRM, handle_timeout)
-            signal.alarm(seconds)
-            result = func(*args, **kwargs)
-            signal.alarm(0)
-            return result
-
-        return wrapper
-
-    return decorator
+executor = ThreadPoolExecutor(max_workers=1)
+def run_with_timeout(func, seconds, *args, **kwargs):
+    future = executor.submit(func, *args, **kwargs)
+    try:
+        return future.result(timeout=seconds)
+    except TimeoutError:
+        raise TimeoutError(f"Function '{func.__name__}' timed out after {seconds} seconds")
 
 
 def world_from_apworld_name(apworld_name):
@@ -214,7 +205,7 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
 
         sys.stdout = out_buf
         sys.stderr = out_buf
-        timeout(timeout_s)(call_generate)(yaml_path_dir, output_path)
+        run_with_timeout(call_generate, timeout_s, yaml_path_dir, output_path)
         sys.stdout = orig_stdout
         sys.stderr = orig_stderr
         return GenOutcome.Success
@@ -387,3 +378,4 @@ if __name__ == "__main__":
         raise e
     finally:
         print_status()
+        executor.shutdown()
