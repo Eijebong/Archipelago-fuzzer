@@ -188,6 +188,7 @@ def call_generate(yaml_path, output_path):
             "skip_prog_balancing": False,
             "skip_output": False,
             "csv_output": False,
+            "log_time": False,
         }
     )
     erargs, seed = GenMain(args)
