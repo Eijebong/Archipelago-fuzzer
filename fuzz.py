@@ -44,6 +44,10 @@ import functools
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
+
+OUT_DIR = f"fuzz_output"
+
+
 def exception_in_causes(e, ty):
     if isinstance(e, ty):
         return True
@@ -294,8 +298,6 @@ def print_status():
 
 
 if __name__ == "__main__":
-    OUT_DIR = f"fuzz_output"
-
     def main(p, args):
         global SUBMITTED
 
