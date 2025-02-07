@@ -22,6 +22,7 @@ from Options import (
     OptionError,
 )
 from Utils import __version__, local_path
+import Utils
 from jinja2 import Template
 
 from argparse import Namespace, ArgumentParser
@@ -46,6 +47,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 
 OUT_DIR = f"fuzz_output"
+ORIG_USER_PATH = Utils.user_path
 
 
 def exception_in_causes(e, ty):
@@ -203,6 +205,17 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
     try:
         # We don't care about the actual gen output, just trash it immediately after gen
         output_path = tempfile.mkdtemp(prefix="apfuzz")
+
+        # Override Utils.user path so we can customize the logs folder
+        # This is very important because every gen starts a thread that cleans all logs older than 7 days.
+        # This is not customizable in any way shape or form. By throwing logs files away, we prevent that thread
+        # from becoming more and more busy as gens go.
+        def my_user_path(name):
+            if name == "logs":
+                return output_path
+            return ORIG_USER_PATH(name)
+        Utils.user_path = my_user_path
+
         yaml_path_dir = tempfile.mkdtemp(prefix="apfuzz")
         for nb, yaml_content in enumerate(yaml_contents):
             yaml_path = os.path.join(yaml_path_dir, f"{i}-{nb}.yaml")
