@@ -27,6 +27,7 @@ from jinja2 import Template
 
 from argparse import Namespace, ArgumentParser
 import yaml
+import logging
 import random
 import shutil
 import string
@@ -257,6 +258,12 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
 
         return GenOutcome.Failure
     finally:
+        root_logger = logging.getLogger()
+        handlers = root_logger.handlers[:]
+        for handler in handlers:
+            root_logger.removeHandler(handler)
+            handler.close()
+
         shutil.rmtree(output_path)
         shutil.rmtree(yaml_path_dir)
 
