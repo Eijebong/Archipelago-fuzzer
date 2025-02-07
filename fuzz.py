@@ -25,26 +25,25 @@ from Utils import __version__, local_path
 import Utils
 from jinja2 import Template
 
+from Generate import main as GenMain
+from Main import main as ERmain
 from argparse import Namespace, ArgumentParser
-import yaml
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from enum import Enum
+from functools import wraps
+from io import StringIO
+from multiprocessing import Pool
+
+import functools
 import logging
+import multiprocessing
 import random
 import shutil
 import string
-import multiprocessing
 import tempfile
-from multiprocessing import Pool
-from io import StringIO
 import time
-from Main import main as ERmain
-from Generate import main as GenMain
-from enum import Enum
 import traceback
-import threading
-import signal
-import functools
-from functools import wraps
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+import yaml
 
 
 OUT_DIR = f"fuzz_output"
@@ -58,13 +57,18 @@ def exception_in_causes(e, ty):
         return exception_in_causes(e.__cause__, ty)
     return False
 
+
 executor = ThreadPoolExecutor(max_workers=1)
+
+
 def run_with_timeout(func, seconds, *args, **kwargs):
     future = executor.submit(func, *args, **kwargs)
     try:
         return future.result(timeout=seconds)
     except TimeoutError:
-        raise TimeoutError(f"Function '{func.__name__}' timed out after {seconds} seconds")
+        raise TimeoutError(
+            f"Function '{func.__name__}' timed out after {seconds} seconds"
+        )
 
 
 def world_from_apworld_name(apworld_name):
@@ -215,6 +219,7 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
             if name == "logs":
                 return output_path
             return ORIG_USER_PATH(name)
+
         Utils.user_path = my_user_path
 
         yaml_path_dir = tempfile.mkdtemp(prefix="apfuzz")
@@ -319,6 +324,7 @@ def print_status():
 
 
 if __name__ == "__main__":
+
     def main(p, args):
         global SUBMITTED
 
