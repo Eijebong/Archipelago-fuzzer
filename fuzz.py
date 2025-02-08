@@ -225,7 +225,7 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
         yaml_path_dir = tempfile.mkdtemp(prefix="apfuzz")
         for nb, yaml_content in enumerate(yaml_contents):
             yaml_path = os.path.join(yaml_path_dir, f"{i}-{nb}.yaml")
-            open(yaml_path, "wb").write(yaml_content.encode('utf-8'))
+            open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
         sys.stdout = out_buf
         sys.stderr = out_buf
@@ -249,7 +249,7 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
 
         for nb, yaml_content in enumerate(yaml_contents):
             error_yaml_path = os.path.join(error_output_dir, f"{i}-{nb}.yaml")
-            open(error_yaml_path, "wb").write(yaml_content.encode('utf-8'))
+            open(error_yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
         error_log_path = os.path.join(error_output_dir, f"{i}.log")
         with open(error_log_path, "w") as fd:
@@ -352,13 +352,33 @@ if __name__ == "__main__":
         if "apsudoku" in valid_worlds:
             valid_worlds.remove("apsudoku")
 
+        yamls_per_run_bounds = [int(arg) for arg in args.yamls_per_run.split("-")]
+
+        if len(yamls_per_run_bounds) not in {1, 2}:
+            raise Exception(
+                "Invalid value passed for `yamls_per_run`. Either pass an int or a range like `1-10`"
+            )
+
+        if len(yamls_per_run_bounds) == 2:
+            if yamls_per_run_bounds[0] >= yamls_per_run_bounds[1]:
+                raise Exception("Invalid range value passed for `yamls_per_run`.")
+
         while i < args.runs:
             if apworld_name is None:
                 actual_apworld = random.choice(valid_worlds)
             else:
                 actual_apworld = apworld_name
+
+            if len(yamls_per_run_bounds) == 1:
+                yamls_this_run = yamls_per_run_bounds[0]
+            else:
+                # +1 here to make the range inclusive
+                yamls_this_run = random.randrange(
+                    yamls_per_run_bounds[0], yamls_per_run_bounds[1] + 1
+                )
+
             random_yamls = [
-                generate_random_yaml(actual_apworld) for _ in range(args.yamls_per_run)
+                generate_random_yaml(actual_apworld) for _ in range(yamls_this_run)
             ]
 
             SUBMITTED += 1
@@ -384,7 +404,7 @@ if __name__ == "__main__":
     parser.add_argument("-g", "--game", default=None)
     parser.add_argument("-j", "--jobs", default=10, type=int)
     parser.add_argument("-r", "--runs", type=int)
-    parser.add_argument("-n", "--yamls_per_run", default=1, type=int)
+    parser.add_argument("-n", "--yamls_per_run", default="1", type=str)
     parser.add_argument("-t", "--timeout", default=15, type=int)
 
     args = parser.parse_args()
