@@ -400,10 +400,6 @@ if __name__ == "__main__":
             main(p, args)
     except KeyboardInterrupt:
         pass
-    except Exception as e:
-        p.close()
-        p.join()
-        raise e
     finally:
         print_status()
         executor.shutdown()
