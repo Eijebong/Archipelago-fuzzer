@@ -256,7 +256,7 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
             fd.write(out_buf.getvalue())
 
             if is_timeout:
-                fd.write("[...] Generation killed here after 15s")
+                fd.write(f"[...] Generation killed here after {timeout_s}s")
                 return GenOutcome.Timeout
             else:
                 fd.write("".join(traceback.format_exception(e)))
