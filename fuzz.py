@@ -225,7 +225,7 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
         yaml_path_dir = tempfile.mkdtemp(prefix="apfuzz")
         for nb, yaml_content in enumerate(yaml_contents):
             yaml_path = os.path.join(yaml_path_dir, f"{i}-{nb}.yaml")
-            open(yaml_path, "w").write(yaml_content)
+            open(yaml_path, "wb").write(yaml_content.encode('utf-8'))
 
         sys.stdout = out_buf
         sys.stderr = out_buf
@@ -249,7 +249,7 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
 
         for nb, yaml_content in enumerate(yaml_contents):
             error_yaml_path = os.path.join(error_output_dir, f"{i}-{nb}.yaml")
-            open(error_yaml_path, "w").write(yaml_content)
+            open(error_yaml_path, "wb").write(yaml_content.encode('utf-8'))
 
         error_log_path = os.path.join(error_output_dir, f"{i}.log")
         with open(error_log_path, "w") as fd:
