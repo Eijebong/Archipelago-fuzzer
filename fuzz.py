@@ -395,12 +395,11 @@ if __name__ == "__main__":
         # forking for every job also has the advantage of being sure that the process is "clean". Although I don't know if that actually matters
         start_method = "fork" if can_fork else "spawn"
         multiprocessing.set_start_method(start_method)
-        p = Pool(processes=args.jobs, maxtasksperchild=None)
-        START = time.time()
-        main(p, args)
+        with Pool(processes=args.jobs, maxtasksperchild=None) as p:
+            START = time.time()
+            main(p, args)
     except KeyboardInterrupt:
-        p.close()
-        p.join()
+        pass
     except Exception as e:
         p.close()
         p.join()
