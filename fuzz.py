@@ -130,6 +130,10 @@ def get_random_value(name, option):
         # Let's not fuck with item links right now, I'm scared
         return option.default
 
+    if name == "megamix_mod_data":
+        # Megamix is a special child and requires this to be valid JSON. Since we can't provide that, just ignore it
+        return option.default
+
     if issubclass(option, (PlandoConnections, PlandoTexts)):
         # See, I was already afraid with item_links but now it's plain terror. Let's not ever touch this ever.
         return option.default
