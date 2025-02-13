@@ -163,7 +163,7 @@ def get_random_value(name, option):
         return option.default
 
     if issubclass(option, OptionSet):
-        return random.choices(option.valid_keys, k=random.randint(0, len(option.valid_keys)))
+        return random.choices(list(option.valid_keys), k=random.randint(0, len(option.valid_keys)))
 
     if issubclass(option, OptionList):
         return random.choices(
