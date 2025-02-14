@@ -155,7 +155,7 @@ def get_random_value(name, option):
         return option.default
 
     if issubclass(option, (Choice, Toggle)):
-        return random.choice(list(option.options.values()))
+        return random.choice(list(option.options.keys()))
 
     if issubclass(option, Range):
         return random.randint(option.range_start, option.range_end)
