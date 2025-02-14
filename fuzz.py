@@ -23,7 +23,6 @@ from Options import (
 )
 from Utils import __version__, local_path
 import Utils
-from jinja2 import Template
 
 from Generate import main as GenMain
 from Main import main as ERmain
@@ -99,28 +98,34 @@ def generate_random_yaml(world_name):
 
         return data, notes
 
-    def yaml_dump_scalar(scalar) -> str:
-        # yaml dump may add end of document marker and newlines.
-        return yaml.dump(scalar).replace("...\n", "").strip()
+    def sanitize(value):
+        if isinstance(value, frozenset):
+            return list(value)
+        return value
 
     game_name, world = world_from_apworld_name(world_name)
     if world is None:
         raise Exception(f"Failed to resolve apworld from apworld name: {apworld_name}")
 
+    game_options = {}
     option_groups = get_option_groups(world)
     for group, options in option_groups.items():
         for option_name, option_value in options.items():
-            option_value.default = get_random_value(option_name, option_value)
-    with open(local_path("data", "options.yaml")) as f:
-        file_data = f.read()
+            game_options[option_name] = sanitize(
+                get_random_value(option_name, option_value)
+            )
 
-    res = Template(file_data).render(
-        option_groups=option_groups,
-        __version__=__version__,
-        game=game_name,
-        yaml_dump=yaml_dump_scalar,
-        dictify_range=dictify_range,
-    )
+    yaml_content = {
+        "description": "%s Template, generated with https://github.com/Eijebong/Archipelago-fuzzer"
+        % game_name,
+        "game": game_name,
+        "requires": {
+            "version": __version__,
+        },
+        game_name: game_options,
+    }
+
+    res = yaml.safe_dump(yaml_content)
 
     return res
 
@@ -163,7 +168,9 @@ def get_random_value(name, option):
         return option.default
 
     if issubclass(option, OptionSet):
-        return random.choices(list(option.valid_keys), k=random.randint(0, len(option.valid_keys)))
+        return random.choices(
+            list(option.valid_keys), k=random.randint(0, len(option.valid_keys))
+        )
 
     if issubclass(option, OptionList):
         return random.choices(
