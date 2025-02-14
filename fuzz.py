@@ -125,7 +125,7 @@ def generate_random_yaml(world_name):
         game_name: game_options,
     }
 
-    res = yaml.safe_dump(yaml_content)
+    res = yaml.safe_dump(yaml_content, sort_keys=False)
 
     return res
 
