@@ -78,6 +78,9 @@ def world_from_apworld_name(apworld_name):
     raise Exception(f"Couldn't find loaded workd with world: {apworld_name}")
 
 
+# See https://github.com/yaml/pyyaml/issues/103
+yaml.Dumper.ignore_aliases = lambda *args: True
+
 # Adapted from archipelago'd generate_yaml_templates
 # https://github.com/ArchipelagoMW/Archipelago/blob/f75a1ae1174fb467e5c5bd5568d7de3c806d5b1c/Options.py#L1504
 def generate_random_yaml(world_name):
