@@ -217,7 +217,7 @@ def call_generate(yaml_path, output_path):
     ERmain(erargs, seed)
 
 
-def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
+def gen_wrapper(yaml_contents, apworld_name, timeout_s, i, dump_option_errors):
     out_buf = StringIO()
     orig_stdout = sys.stdout
     orig_stderr = sys.stderr
@@ -255,10 +255,16 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
         is_timeout = isinstance(e, TimeoutError)
         is_option_error = exception_in_causes(e, OptionError)
 
-        if is_option_error:
+        if is_option_error and not dump_option_errors:
             return GenOutcome.OptionError
 
-        error_ty = "timeout" if is_timeout else "error"
+        if is_option_error:
+            error_ty = "ignored"
+        elif is_timeout:
+            error_ty = "timeout"
+        else:
+            error_ty = "error"
+
         error_output_dir = os.path.join(OUT_DIR, error_ty, apworld_name, str(i))
         os.makedirs(error_output_dir)
 
@@ -276,7 +282,7 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i):
             else:
                 fd.write("".join(traceback.format_exception(e)))
 
-        return GenOutcome.Failure
+        return GenOutcome.OptionError if is_option_error else GenOutcome.Failure
     finally:
         root_logger = logging.getLogger()
         handlers = root_logger.handlers[:]
@@ -399,7 +405,7 @@ if __name__ == "__main__":
             SUBMITTED += 1
             last_job = p.apply_async(
                 gen_wrapper,
-                args=(random_yamls, actual_apworld, args.timeout, i),
+                args=(random_yamls, actual_apworld, args.timeout, i, args.dump_ignored),
                 callback=success,
                 error_callback=error,
             )
@@ -421,6 +427,7 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--runs", type=int)
     parser.add_argument("-n", "--yamls_per_run", default="1", type=str)
     parser.add_argument("-t", "--timeout", default=15, type=int)
+    parser.add_argument("--dump-ignored", default=False, action="store_true")
 
     args = parser.parse_args()
 

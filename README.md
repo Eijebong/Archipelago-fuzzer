@@ -23,4 +23,5 @@ The output will be available in `./fuzz_output`.
   also specify ranges like `1-10` to make all generations pick a number between
   1 and 10 YAMLs.
 - `-t` specifies the maximum time per generation in seconds. Defaults to 15s.
+- `--dump-ignored` makes it so option errors are also dumped in the result.
 
