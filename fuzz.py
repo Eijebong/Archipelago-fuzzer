@@ -28,6 +28,8 @@ from Generate import main as GenMain
 from Main import main as ERmain
 from argparse import Namespace, ArgumentParser
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+import ctypes
+import threading
 from contextlib import redirect_stderr, redirect_stdout
 from enum import Enum
 from functools import wraps
@@ -65,7 +67,11 @@ def run_with_timeout(func, seconds, *args, **kwargs):
     try:
         return future.result(timeout=seconds)
     except TimeoutError:
-        executor.shutdown(wait=True)
+        for thread in threading.enumerate():
+            if thread.name != "MainThread":
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(TimeoutError))
+
+        executor.shutdown(wait=True, cancel_futures=True)
         executor = ThreadPoolExecutor(max_workers=1)
         raise TimeoutError(
             f"Function '{func.__name__}' timed out after {seconds} seconds"
