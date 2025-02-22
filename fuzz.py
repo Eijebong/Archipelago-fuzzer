@@ -59,13 +59,14 @@ def exception_in_causes(e, ty):
 
 
 executor = ThreadPoolExecutor(max_workers=1)
-
-
 def run_with_timeout(func, seconds, *args, **kwargs):
+    global executor
     future = executor.submit(func, *args, **kwargs)
     try:
         return future.result(timeout=seconds)
     except TimeoutError:
+        executor.shutdown(wait=True)
+        executor = ThreadPoolExecutor(max_workers=1)
         raise TimeoutError(
             f"Function '{func.__name__}' timed out after {seconds} seconds"
         )
