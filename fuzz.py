@@ -28,6 +28,7 @@ from Generate import main as GenMain
 from Main import main as ERmain
 from argparse import Namespace, ArgumentParser
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from contextlib import redirect_stderr, redirect_stdout
 from enum import Enum
 from functools import wraps
 from io import StringIO
@@ -219,8 +220,6 @@ def call_generate(yaml_path, output_path):
 
 def gen_wrapper(yaml_contents, apworld_name, timeout_s, i, dump_option_errors):
     out_buf = StringIO()
-    orig_stdout = sys.stdout
-    orig_stderr = sys.stderr
 
     try:
         # We don't care about the actual gen output, just trash it immediately after gen
@@ -242,16 +241,10 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i, dump_option_errors):
             yaml_path = os.path.join(yaml_path_dir, f"{i}-{nb}.yaml")
             open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
-        sys.stdout = out_buf
-        sys.stderr = out_buf
-        run_with_timeout(call_generate, timeout_s, yaml_path_dir, output_path)
-        sys.stdout = orig_stdout
-        sys.stderr = orig_stderr
+        with redirect_stdout(out_buf), redirect_stderr(out_buf):
+            run_with_timeout(call_generate, timeout_s, yaml_path_dir, output_path)
         return GenOutcome.Success
     except Exception as e:
-        sys.stdout = orig_stdout
-        sys.stderr = orig_stderr
-
         is_timeout = isinstance(e, TimeoutError)
         is_option_error = exception_in_causes(e, OptionError)
 
