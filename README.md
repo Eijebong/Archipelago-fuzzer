@@ -23,5 +23,22 @@ The output will be available in `./fuzz_output`.
   also specify ranges like `1-10` to make all generations pick a number between
   1 and 10 YAMLs.
 - `-t` specifies the maximum time per generation in seconds. Defaults to 15s.
+- `-m` to specify a meta file that overrides specific values
 - `--dump-ignored` makes it so option errors are also dumped in the result.
 
+## Meta files
+
+You can force some options to always be the same value by providing a meta file via the `-m` flag.
+The syntax is very similar to the archipelago meta.yaml syntax:
+
+```yaml
+null:
+  progression_balancing: 50
+Pokemon FireRed and LeafGreen:
+  ability_blacklist: []
+  move_blacklist: []
+```
+
+Note that unlike an archipelago meta file, this will override the values in the
+generated YAML, there's no implicit application of options at generation time
+so you don't need to provide the meta file to report bugs.

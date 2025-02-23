@@ -91,7 +91,7 @@ yaml.SafeDumper.ignore_aliases = lambda *args: True
 
 # Adapted from archipelago'd generate_yaml_templates
 # https://github.com/ArchipelagoMW/Archipelago/blob/f75a1ae1174fb467e5c5bd5568d7de3c806d5b1c/Options.py#L1504
-def generate_random_yaml(world_name):
+def generate_random_yaml(world_name, meta):
     def dictify_range(option):
         data = {option.default: 50}
         for sub_option in ["random", "random-low", "random-high"]:
@@ -122,6 +122,14 @@ def generate_random_yaml(world_name):
     option_groups = get_option_groups(world)
     for group, options in option_groups.items():
         for option_name, option_value in options.items():
+            override = meta.get(None, {}).get(option_name)
+            if not override:
+                override = meta.get(game_name, {}).get(option_name)
+
+            if override is not None:
+                game_options[option_name] = override
+                continue
+
             game_options[option_name] = sanitize(
                 get_random_value(option_name, option_value)
             )
@@ -350,6 +358,11 @@ if __name__ == "__main__":
         global SUBMITTED
 
         apworld_name = args.game
+        if args.meta:
+            with open(args.meta, "r") as fd:
+                meta = yaml.safe_load(fd.read())
+        else:
+            meta = {}
 
         if apworld_name is not None:
             world = world_from_apworld_name(apworld_name)
@@ -399,7 +412,7 @@ if __name__ == "__main__":
                 )
 
             random_yamls = [
-                generate_random_yaml(actual_apworld) for _ in range(yamls_this_run)
+                generate_random_yaml(actual_apworld, meta) for _ in range(yamls_this_run)
             ]
 
             SUBMITTED += 1
@@ -427,6 +440,7 @@ if __name__ == "__main__":
     parser.add_argument("-r", "--runs", type=int)
     parser.add_argument("-n", "--yamls_per_run", default="1", type=str)
     parser.add_argument("-t", "--timeout", default=15, type=int)
+    parser.add_argument("-m", "--meta", default=None, type=None)
     parser.add_argument("--dump-ignored", default=False, action="store_true")
 
     args = parser.parse_args()
