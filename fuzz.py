@@ -71,7 +71,14 @@ def run_with_timeout(func, seconds, *args, **kwargs):
             if thread.name != "MainThread":
                 ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(TimeoutError))
 
-        executor.shutdown(wait=True, cancel_futures=True)
+        # Give 100ms to threads to shut down properly before killing them
+        # This is necessary because if they're deadlocked, they don't die otherwise
+        time.sleep(0.1)
+
+        for thread in threading.enumerate():
+            if thread.name != "MainThread":
+                os.kill(thread.native_id, 9)
+
         executor = ThreadPoolExecutor(max_workers=1)
         raise TimeoutError(
             f"Function '{func.__name__}' timed out after {seconds} seconds"
