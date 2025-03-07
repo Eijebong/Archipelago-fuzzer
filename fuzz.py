@@ -466,3 +466,4 @@ if __name__ == "__main__":
     finally:
         print_status()
         executor.shutdown()
+        sys.exit((FAILURE + TIMEOUTS) != 0)
