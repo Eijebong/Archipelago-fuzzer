@@ -77,7 +77,7 @@ def run_with_timeout(func, seconds, *args, **kwargs):
 
         for thread in threading.enumerate():
             if thread.name != "MainThread":
-                os.kill(thread.native_id, 9)
+                os.kill(thread.native_id, -9)
 
         executor = ThreadPoolExecutor(max_workers=1)
         raise TimeoutError(
