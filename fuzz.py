@@ -251,10 +251,10 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i, dump_option_errors):
         # This is very important because every gen starts a thread that cleans all logs older than 7 days.
         # This is not customizable in any way shape or form. By throwing logs files away, we prevent that thread
         # from becoming more and more busy as gens go.
-        def my_user_path(name):
+        def my_user_path(name, *args):
             if name == "logs":
                 return output_path
-            return ORIG_USER_PATH(name)
+            return ORIG_USER_PATH(name, *args)
 
         Utils.user_path = my_user_path
 
