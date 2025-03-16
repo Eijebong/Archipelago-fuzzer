@@ -121,29 +121,23 @@ def exception_in_causes(e, ty):
     return False
 
 
-executor = ThreadPoolExecutor(max_workers=1)
 def run_with_timeout(func, seconds, *args, **kwargs):
-    global executor
-    future = executor.submit(func, *args, **kwargs)
+    target_tid = threading.current_thread().ident
+
+    def stop():
+        for thread in threading.enumerate():
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(TimeoutError))
+
+    timer = threading.Timer(seconds, stop)
+    timer.start()
     try:
-        return future.result(timeout=seconds)
+        return func(*args, **kwargs)
     except TimeoutError:
-        for thread in threading.enumerate():
-            if thread.name != "MainThread":
-                ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(TimeoutError))
-
-        # Give 100ms to threads to shut down properly before killing them
-        # This is necessary because if they're deadlocked, they don't die otherwise
-        time.sleep(0.1)
-
-        for thread in threading.enumerate():
-            if thread.name != "MainThread" and thread.is_alive():
-                os.kill(thread.native_id, signal.SIGKILL)
-
-        executor = ThreadPoolExecutor(max_workers=1)
         raise TimeoutError(
             f"Function '{func.__name__}' timed out after {seconds} seconds"
         )
+    finally:
+        timer.cancel()
 
 
 def world_from_apworld_name(apworld_name):
@@ -303,60 +297,60 @@ def call_generate(yaml_path, output_path):
 
 def gen_wrapper(yaml_contents, apworld_name, timeout_s, i, dump_option_errors):
     out_buf = StringIO()
+    raised = None
 
-    try:
-        # We don't care about the actual gen output, just trash it immediately after gen
-        output_path = tempfile.mkdtemp(prefix="apfuzz")
+    with redirect_stdout(out_buf), redirect_stderr(out_buf):
+        try:
+            # We don't care about the actual gen output, just trash it immediately after gen
+            with tempfile.TemporaryDirectory(prefix="apfuzz") as output_path, tempfile.TemporaryDirectory(prefix="apfuzz") as yaml_path_dir:
+                for nb, yaml_content in enumerate(yaml_contents):
+                    yaml_path = os.path.join(yaml_path_dir, f"{i}-{nb}.yaml")
+                    open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
-        yaml_path_dir = tempfile.mkdtemp(prefix="apfuzz")
-        for nb, yaml_content in enumerate(yaml_contents):
-            yaml_path = os.path.join(yaml_path_dir, f"{i}-{nb}.yaml")
-            open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
+                run_with_timeout(call_generate, timeout_s, yaml_path_dir, output_path)
+        except Exception as e:
+            raised = e
+        finally:
+            root_logger = logging.getLogger()
+            handlers = root_logger.handlers[:]
+            for handler in handlers:
+                root_logger.removeHandler(handler)
+                handler.close()
 
-        with redirect_stdout(out_buf), redirect_stderr(out_buf):
-            run_with_timeout(call_generate, timeout_s, yaml_path_dir, output_path)
-        return GenOutcome.Success
-    except Exception as e:
-        is_timeout = isinstance(e, TimeoutError)
-        is_option_error = exception_in_causes(e, OptionError)
+            if not raised:
+                return GenOutcome.Success
 
-        if is_option_error and not dump_option_errors:
-            return GenOutcome.OptionError
+            is_timeout = isinstance(raised, TimeoutError)
+            is_option_error = exception_in_causes(raised, OptionError)
 
-        if is_option_error:
-            error_ty = "ignored"
-        elif is_timeout:
-            error_ty = "timeout"
-        else:
-            error_ty = "error"
+            if is_option_error and not dump_option_errors:
+                return GenOutcome.OptionError
 
-        error_output_dir = os.path.join(OUT_DIR, error_ty, apworld_name, str(i))
-        os.makedirs(error_output_dir)
-
-        for nb, yaml_content in enumerate(yaml_contents):
-            error_yaml_path = os.path.join(error_output_dir, f"{i}-{nb}.yaml")
-            open(error_yaml_path, "wb").write(yaml_content.encode("utf-8"))
-
-        error_log_path = os.path.join(error_output_dir, f"{i}.log")
-        with open(error_log_path, "w") as fd:
-            fd.write(out_buf.getvalue())
-
-            if is_timeout:
-                fd.write(f"[...] Generation killed here after {timeout_s}s")
-                return GenOutcome.Timeout
+            if is_option_error:
+                error_ty = "ignored"
+            elif is_timeout:
+                error_ty = "timeout"
             else:
-                fd.write("".join(traceback.format_exception(e)))
+                error_ty = "error"
 
-        return GenOutcome.OptionError if is_option_error else GenOutcome.Failure
-    finally:
-        root_logger = logging.getLogger()
-        handlers = root_logger.handlers[:]
-        for handler in handlers:
-            root_logger.removeHandler(handler)
-            handler.close()
+            error_output_dir = os.path.join(OUT_DIR, error_ty, apworld_name, str(i))
+            os.makedirs(error_output_dir)
 
-        shutil.rmtree(output_path)
-        shutil.rmtree(yaml_path_dir)
+            for nb, yaml_content in enumerate(yaml_contents):
+                error_yaml_path = os.path.join(error_output_dir, f"{i}-{nb}.yaml")
+                open(error_yaml_path, "wb").write(yaml_content.encode("utf-8"))
+
+            error_log_path = os.path.join(error_output_dir, f"{i}.log")
+            with open(error_log_path, "w") as fd:
+                fd.write(out_buf.getvalue())
+
+                if is_timeout:
+                    fd.write(f"[...] Generation killed here after {timeout_s}s")
+                    return GenOutcome.Timeout
+                else:
+                    fd.write("".join(traceback.format_exception(raised)))
+
+            return GenOutcome.OptionError if is_option_error else GenOutcome.Failure
 
 
 class GenOutcome(Enum):
@@ -515,5 +509,4 @@ if __name__ == "__main__":
         pass
     finally:
         print_status()
-        executor.shutdown()
         sys.exit((FAILURE + TIMEOUTS) != 0)
