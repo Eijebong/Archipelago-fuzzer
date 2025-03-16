@@ -126,11 +126,12 @@ def run_with_timeout(func, seconds, *args, **kwargs):
 
     def stop():
         for thread in threading.enumerate():
-            ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(TimeoutError))
+            if thread != timer:
+                ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(TimeoutError))
 
     timer = threading.Timer(seconds, stop)
-    timer.start()
     try:
+        timer.start()
         return func(*args, **kwargs)
     except TimeoutError:
         raise TimeoutError(
