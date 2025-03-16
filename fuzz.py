@@ -39,11 +39,12 @@ from multiprocessing import Pool
 import functools
 import logging
 import multiprocessing
+import platform
 import random
 import shutil
+import signal
 import string
 import tempfile
-import platform
 import time
 import traceback
 import yaml
@@ -136,8 +137,8 @@ def run_with_timeout(func, seconds, *args, **kwargs):
         time.sleep(0.1)
 
         for thread in threading.enumerate():
-            if thread.name != "MainThread":
-                os.kill(thread.native_id, -9)
+            if thread.name != "MainThread" and thread.is_alive():
+                os.kill(thread.native_id, signal.SIGKILL)
 
         executor = ThreadPoolExecutor(max_workers=1)
         raise TimeoutError(
