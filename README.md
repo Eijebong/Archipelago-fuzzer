@@ -25,6 +25,7 @@ The output will be available in `./fuzz_output`.
 - `-t` specifies the maximum time per generation in seconds. Defaults to 15s.
 - `-m` to specify a meta file that overrides specific values
 - `--dump-ignored` makes it so option errors are also dumped in the result.
+- `--with-static-worlds` takes a path to a directory containing YAML to include in every generation. Not recursive.
 
 ## Meta files
 

@@ -296,7 +296,7 @@ def call_generate(yaml_path, output_path):
     ERmain(erargs, seed)
 
 
-def gen_wrapper(yaml_contents, apworld_name, timeout_s, i, dump_option_errors):
+def gen_wrapper(yaml_contents, static_yamls, apworld_name, timeout_s, i, dump_option_errors):
     out_buf = StringIO()
     raised = None
 
@@ -306,6 +306,10 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i, dump_option_errors):
             with tempfile.TemporaryDirectory(prefix="apfuzz") as output_path, tempfile.TemporaryDirectory(prefix="apfuzz") as yaml_path_dir:
                 for nb, yaml_content in enumerate(yaml_contents):
                     yaml_path = os.path.join(yaml_path_dir, f"{i}-{nb}.yaml")
+                    open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
+
+                for nb, yaml_content in enumerate(static_yamls):
+                    yaml_path = os.path.join(yaml_path_dir, f"static-{i}-{nb}.yaml")
                     open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
                 run_with_timeout(call_generate, timeout_s, yaml_path_dir, output_path)
@@ -339,6 +343,10 @@ def gen_wrapper(yaml_contents, apworld_name, timeout_s, i, dump_option_errors):
 
             for nb, yaml_content in enumerate(yaml_contents):
                 error_yaml_path = os.path.join(error_output_dir, f"{i}-{nb}.yaml")
+                open(error_yaml_path, "wb").write(yaml_content.encode("utf-8"))
+
+            for nb, yaml_content in enumerate(static_yamls):
+                error_yaml_path = os.path.join(error_output_dir, f"static-{i}-{nb}.yaml")
                 open(error_yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
             error_log_path = os.path.join(error_output_dir, f"{i}.log")
@@ -467,10 +475,19 @@ if __name__ == "__main__":
                 generate_random_yaml(actual_apworld, meta) for _ in range(yamls_this_run)
             ]
 
+            static_yamls = []
+            if args.with_static_worlds:
+                for yaml_file in os.listdir(args.with_static_worlds):
+                    path = os.path.join(args.with_static_worlds, yaml_file)
+                    if not os.path.isfile(path):
+                        continue
+                    with open(path, "r") as fd:
+                        static_yamls.append(fd.read())
+
             SUBMITTED += 1
             last_job = p.apply_async(
                 gen_wrapper,
-                args=(random_yamls, actual_apworld, args.timeout, i, args.dump_ignored),
+                args=(random_yamls, static_yamls, actual_apworld, args.timeout, i, args.dump_ignored),
                 callback=success,
                 error_callback=error,
             )
@@ -494,6 +511,7 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--timeout", default=15, type=int)
     parser.add_argument("-m", "--meta", default=None, type=None)
     parser.add_argument("--dump-ignored", default=False, action="store_true")
+    parser.add_argument("--with-static-worlds", default=None)
 
     args = parser.parse_args()
 
