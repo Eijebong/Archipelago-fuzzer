@@ -414,7 +414,6 @@ def print_status():
 
 
 if __name__ == "__main__":
-
     def main(p, args):
         global SUBMITTED
 
@@ -527,6 +526,8 @@ if __name__ == "__main__":
             main(p, args)
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        print(e)
     finally:
         print_status()
         sys.exit((FAILURE + TIMEOUTS) != 0)
