@@ -4,6 +4,11 @@ import os
 ap_path = os.path.abspath(os.path.dirname(sys.argv[0]))
 sys.path.insert(0, ap_path)
 
+# Prevent multiprocess workers from spamming nonsense when KeyboardInterrupted
+# I can't wait for this to hide actual issues...
+if __name__ == "__mp_main__":
+    sys.stderr = None
+
 from worlds import AutoWorldRegister
 from Options import (
     get_option_groups,
@@ -27,7 +32,7 @@ import Utils
 from Generate import main as GenMain
 from Main import main as ERmain
 from argparse import Namespace, ArgumentParser
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import TimeoutError
 import ctypes
 import threading
 from contextlib import redirect_stderr, redirect_stdout
@@ -119,26 +124,6 @@ def exception_in_causes(e, ty):
     if e.__cause__ is not None:
         return exception_in_causes(e.__cause__, ty)
     return False
-
-
-def run_with_timeout(func, seconds, *args, **kwargs):
-    target_tid = threading.current_thread().ident
-
-    def stop():
-        for thread in threading.enumerate():
-            if thread != timer:
-                ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(thread.ident), ctypes.py_object(TimeoutError))
-
-    timer = threading.Timer(seconds, stop)
-    try:
-        timer.start()
-        return func(*args, **kwargs)
-    except TimeoutError:
-        raise TimeoutError(
-            f"Function '{func.__name__}' timed out after {seconds} seconds"
-        )
-    finally:
-        timer.cancel()
 
 
 def world_from_apworld_name(apworld_name):
@@ -297,33 +282,30 @@ def call_generate(yaml_path, output_path):
     ERmain(erargs, seed)
 
 
-def gen_wrapper(yaml_contents, static_yamls, apworld_name, timeout_s, i, dump_option_errors, classifier_path):
+def gen_wrapper(yaml_path, output_path, apworld_name, i, timeout_s, classifier_path, queue):
     global CLASSIFIER
+    out_buf = StringIO()
+
+    myself = os.getpid()
+    def stop():
+        queue.put((myself, apworld_name, i, yaml_path, out_buf))
+    timer = threading.Timer(timeout_s, stop)
+    timer.start()
 
     if classifier_path is not None and CLASSIFIER is None:
         CLASSIFIER = find_classifier(classifier_path)
         if hasattr(CLASSIFIER, "setup"):
             getattr(CLASSIFIER, "setup")()
 
-    out_buf = StringIO()
     raised = None
 
     with redirect_stdout(out_buf), redirect_stderr(out_buf):
         try:
-            # We don't care about the actual gen output, just trash it immediately after gen
-            with tempfile.TemporaryDirectory(prefix="apfuzz") as output_path, tempfile.TemporaryDirectory(prefix="apfuzz") as yaml_path_dir:
-                for nb, yaml_content in enumerate(yaml_contents):
-                    yaml_path = os.path.join(yaml_path_dir, f"{i}-{nb}.yaml")
-                    open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
-
-                for nb, yaml_content in enumerate(static_yamls):
-                    yaml_path = os.path.join(yaml_path_dir, f"static-{i}-{nb}.yaml")
-                    open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
-
-                run_with_timeout(call_generate, timeout_s, yaml_path_dir, output_path)
+            call_generate(yaml_path.name, output_path)
         except Exception as e:
             raised = e
         finally:
+            timer.cancel()
             root_logger = logging.getLogger()
             handlers = root_logger.handlers[:]
             for handler in handlers:
@@ -348,38 +330,41 @@ def gen_wrapper(yaml_contents, static_yamls, apworld_name, timeout_s, i, dump_op
             if outcome == GenOutcome.Success:
                 return outcome
 
-            if outcome == GenOutcome.OptionError and not dump_option_errors:
+            if outcome == GenOutcome.OptionError and not args.dump_ignored:
                 return outcome
 
-            if outcome == GenOutcome.OptionError:
-                error_ty = "ignored"
-            elif outcome == GenOutcome.Timeout:
-                error_ty = "timeout"
+            if outcome == GenOutcome.Timeout:
+                extra = f"[...] Generation killed here after {args.timeout}s"
             else:
-                error_ty = "error"
+                extra = "".join(traceback.format_exception(raised))
 
-            error_output_dir = os.path.join(OUT_DIR, error_ty, apworld_name, str(i))
-            os.makedirs(error_output_dir)
-
-            for nb, yaml_content in enumerate(yaml_contents):
-                error_yaml_path = os.path.join(error_output_dir, f"{i}-{nb}.yaml")
-                open(error_yaml_path, "wb").write(yaml_content.encode("utf-8"))
-
-            for nb, yaml_content in enumerate(static_yamls):
-                error_yaml_path = os.path.join(error_output_dir, f"static-{i}-{nb}.yaml")
-                open(error_yaml_path, "wb").write(yaml_content.encode("utf-8"))
-
-            error_log_path = os.path.join(error_output_dir, f"{i}.log")
-            with open(error_log_path, "w") as fd:
-                fd.write(out_buf.getvalue())
-
-                if outcome == GenOutcome.Timeout:
-                    fd.write(f"[...] Generation killed here after {timeout_s}s")
-                    return outcome
-                else:
-                    fd.write("".join(traceback.format_exception(raised)))
+            dump_generation_output(outcome, apworld_name, i, yaml_path, out_buf, extra)
 
             return outcome
+
+
+def dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra=None):
+    if outcome == GenOutcome.Success:
+        return
+
+    if outcome == GenOutcome.OptionError:
+        error_ty = "ignored"
+    elif outcome == GenOutcome.Timeout:
+        error_ty = "timeout"
+    else:
+        error_ty = "error"
+
+    error_output_dir = os.path.join(OUT_DIR, error_ty, apworld_name, str(i))
+    os.makedirs(error_output_dir)
+
+    for yaml_file in os.listdir(yamls_dir.name):
+        shutil.copy(os.path.join(yamls_dir.name, yaml_file), error_output_dir)
+
+    error_log_path = os.path.join(error_output_dir, f"{i}.log")
+    with open(error_log_path, "w") as fd:
+        fd.write(out_buf.getvalue())
+        if extra is not None:
+            fd.write(extra)
 
 
 class GenOutcome:
@@ -397,8 +382,9 @@ OPTION_ERRORS = 0
 SUBMITTED = 0
 
 
-def success(outcome):
+def gen_callback(yamls_dir, outcome):
     global SUCCESS, FAILURE, SUBMITTED, OPTION_ERRORS, TIMEOUTS
+    SUBMITTED -= 1
 
     if outcome == GenOutcome.Success:
         SUCCESS += 1
@@ -415,13 +401,9 @@ def success(outcome):
 
     sys.stdout.flush()
 
-    SUBMITTED -= 1
 
-
-def error(e):
-    import traceback
-
-    traceback.print_exception(e)
+def error(yamls_dir, raised):
+    return gen_callback(yamls_dir, GenOutcome.Failure)
 
 
 def print_status():
@@ -452,8 +434,8 @@ def find_classifier(classifier_path):
 
     return classifier
 
-
 if __name__ == "__main__":
+
     def main(p, args):
         global SUBMITTED
 
@@ -497,51 +479,85 @@ if __name__ == "__main__":
             if yamls_per_run_bounds[0] >= yamls_per_run_bounds[1]:
                 raise Exception("Invalid range value passed for `yamls_per_run`.")
 
-        while i < args.runs:
-            if apworld_name is None:
-                actual_apworld = random.choice(valid_worlds)
-            else:
-                actual_apworld = apworld_name
+        static_yamls = []
+        if args.with_static_worlds:
+            for yaml_file in os.listdir(args.with_static_worlds):
+                path = os.path.join(args.with_static_worlds, yaml_file)
+                if not os.path.isfile(path):
+                    continue
+                with open(path, "r") as fd:
+                    static_yamls.append(fd.read())
 
-            if len(yamls_per_run_bounds) == 1:
-                yamls_this_run = yamls_per_run_bounds[0]
-            else:
-                # +1 here to make the range inclusive
-                yamls_this_run = random.randrange(
-                    yamls_per_run_bounds[0], yamls_per_run_bounds[1] + 1
+
+        manager = multiprocessing.Manager()
+        queue = manager.Queue()
+        def handle_timeouts():
+            while True:
+                try:
+                    pid, apworld_name, i, yamls_dir, out_buf = queue.get()
+                    os.kill(pid, signal.SIGTERM)
+
+                    extra = f"[...] Generation killed here after {args.timeout}s"
+                    outcome = GenOutcome.Timeout
+                    if CLASSIFIER is not None:
+                        outcome = CLASSIFIER.classify(outcome, TimeoutError())
+                    dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra)
+                    gen_callback(yamls_dir, outcome)
+                except:
+                    break
+
+        timeout_handler = threading.Thread(target=handle_timeouts)
+        timeout_handler.daemon = True
+        timeout_handler.start()
+
+        with tempfile.TemporaryDirectory(prefix="apfuzz") as output_path:
+            while i < args.runs:
+                if apworld_name is None:
+                    actual_apworld = random.choice(valid_worlds)
+                else:
+                    actual_apworld = apworld_name
+
+                if len(yamls_per_run_bounds) == 1:
+                    yamls_this_run = yamls_per_run_bounds[0]
+                else:
+                    # +1 here to make the range inclusive
+                    yamls_this_run = random.randrange(
+                        yamls_per_run_bounds[0], yamls_per_run_bounds[1] + 1
+                    )
+
+                random_yamls = [
+                    generate_random_yaml(actual_apworld, meta) for _ in range(yamls_this_run)
+                ]
+
+                SUBMITTED += 1
+
+                # We don't care about the actual gen output, just trash it immediately after gen
+                yamls_dir = tempfile.TemporaryDirectory(prefix="apfuzz")
+                for nb, yaml_content in enumerate(random_yamls):
+                    yaml_path = os.path.join(yamls_dir.name, f"{i}-{nb}.yaml")
+                    open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
+
+                for nb, yaml_content in enumerate(static_yamls):
+                    yaml_path = os.path.join(yamls_dir.name, f"static-{i}-{nb}.yaml")
+                    open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
+
+                last_job = p.apply_async(
+                    gen_wrapper,
+                    args=(yamls_dir, output_path, actual_apworld, i, args.timeout, args.classifier, queue),
+                    callback=functools.partial(gen_callback, yamls_dir), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
+                    error_callback=functools.partial(error, yamls_dir),
                 )
 
-            random_yamls = [
-                generate_random_yaml(actual_apworld, meta) for _ in range(yamls_this_run)
-            ]
+                while SUBMITTED >= args.jobs * 10:
+                    # Poll the last job to keep the queue running
+                    last_job.ready()
+                    time.sleep(0.001)
 
-            static_yamls = []
-            if args.with_static_worlds:
-                for yaml_file in os.listdir(args.with_static_worlds):
-                    path = os.path.join(args.with_static_worlds, yaml_file)
-                    if not os.path.isfile(path):
-                        continue
-                    with open(path, "r") as fd:
-                        static_yamls.append(fd.read())
+                i += 1
 
-            SUBMITTED += 1
-            last_job = p.apply_async(
-                gen_wrapper,
-                args=(random_yamls, static_yamls, actual_apworld, args.timeout, i, args.dump_ignored, args.classifier),
-                callback=success,
-                error_callback=error,
-            )
-
-            while SUBMITTED >= args.jobs * 10:
-                # Poll the last job to keep the queue running
+            while SUBMITTED > 0:
                 last_job.ready()
-                time.sleep(0.001)
-
-            i += 1
-
-        while SUBMITTED > 0:
-            last_job.ready()
-            time.sleep(0.05)
+                time.sleep(0.05)
 
     parser = ArgumentParser(prog="apfuzz")
     parser.add_argument("-g", "--game", default=None)
@@ -578,5 +594,4 @@ if __name__ == "__main__":
     finally:
         print_status()
         sys.exit((FAILURE + TIMEOUTS) != 0)
-
 
