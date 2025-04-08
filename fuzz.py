@@ -330,18 +330,30 @@ def gen_wrapper(yaml_contents, static_yamls, apworld_name, timeout_s, i, dump_op
                 root_logger.removeHandler(handler)
                 handler.close()
 
-            if not raised:
-                return (GenOutcome.Success, None)
+            outcome = GenOutcome.Success
+            if raised:
+                is_timeout = isinstance(raised, TimeoutError)
+                is_option_error = exception_in_causes(raised, OptionError)
 
-            is_timeout = isinstance(raised, TimeoutError)
-            is_option_error = exception_in_causes(raised, OptionError)
+                if is_timeout:
+                    outcome = GenOutcome.Timeout
+                elif is_option_error:
+                    outcome = GenOutcome.OptionError
+                else:
+                    outcome = GenOutcome.Failure
 
-            if is_option_error and not dump_option_errors:
-                return (GenOutcome.OptionError, raised)
+            if CLASSIFIER is not None:
+                outcome = CLASSIFIER.classify(outcome, raised)
 
-            if is_option_error:
+            if outcome == GenOutcome.Success:
+                return outcome
+
+            if outcome == GenOutcome.OptionError and not dump_option_errors:
+                return outcome
+
+            if outcome == GenOutcome.OptionError:
                 error_ty = "ignored"
-            elif is_timeout:
+            elif outcome == GenOutcome.Timeout:
                 error_ty = "timeout"
             else:
                 error_ty = "error"
@@ -361,13 +373,13 @@ def gen_wrapper(yaml_contents, static_yamls, apworld_name, timeout_s, i, dump_op
             with open(error_log_path, "w") as fd:
                 fd.write(out_buf.getvalue())
 
-                if is_timeout:
+                if outcome == GenOutcome.Timeout:
                     fd.write(f"[...] Generation killed here after {timeout_s}s")
-                    return (GenOutcome.Timeout, raised)
+                    return outcome
                 else:
                     fd.write("".join(traceback.format_exception(raised)))
 
-            return (GenOutcome.OptionError if is_option_error else GenOutcome.Failure, raised)
+            return outcome
 
 
 class GenOutcome:
@@ -385,12 +397,8 @@ OPTION_ERRORS = 0
 SUBMITTED = 0
 
 
-def success(result):
+def success(outcome):
     global SUCCESS, FAILURE, SUBMITTED, OPTION_ERRORS, TIMEOUTS
-
-    outcome, exception = result
-    if CLASSIFIER is not None:
-        outcome = CLASSIFIER.classify(outcome, exception)
 
     if outcome == GenOutcome.Success:
         SUCCESS += 1
