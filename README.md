@@ -24,6 +24,7 @@ The output will be available in `./fuzz_output`.
   1 and 10 YAMLs.
 - `-t` specifies the maximum time per generation in seconds. Defaults to 15s.
 - `-m` to specify a meta file that overrides specific values
+- `--skip-output` specifies to skip the output step of generation.
 - `--dump-ignored` makes it so option errors are also dumped in the result.
 - `--with-static-worlds` takes a path to a directory containing YAML to include in every generation. Not recursive.
 - `--classifier` takes a `module:class` string to a classifier. More information about that below

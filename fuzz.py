@@ -252,7 +252,7 @@ def get_random_value(name, option):
     return option.default
 
 
-def call_generate(yaml_path, output_path):
+def call_generate(yaml_path, output_path, args):
     from settings import get_settings
 
     settings = get_settings()
@@ -272,7 +272,7 @@ def call_generate(yaml_path, output_path):
             "yaml_output": 1,
             "plando": [],
             "skip_prog_balancing": False,
-            "skip_output": False,
+            "skip_output": args.skip_output,
             "csv_output": False,
             "log_time": False,
             "spoiler_only": False,
@@ -282,18 +282,18 @@ def call_generate(yaml_path, output_path):
     ERmain(erargs, seed)
 
 
-def gen_wrapper(yaml_path, output_path, apworld_name, i, timeout_s, classifier_path, queue):
+def gen_wrapper(yaml_path, output_path, apworld_name, i, args, queue):
     global CLASSIFIER
     out_buf = StringIO()
 
     myself = os.getpid()
     def stop():
         queue.put((myself, apworld_name, i, yaml_path, out_buf))
-    timer = threading.Timer(timeout_s, stop)
+    timer = threading.Timer(args.timeout, stop)
     timer.start()
 
-    if classifier_path is not None and CLASSIFIER is None:
-        CLASSIFIER = find_classifier(classifier_path)
+    if args.classifier is not None and CLASSIFIER is None:
+        CLASSIFIER = find_classifier(args.classifier)
         if hasattr(CLASSIFIER, "setup"):
             getattr(CLASSIFIER, "setup")()
 
@@ -301,7 +301,7 @@ def gen_wrapper(yaml_path, output_path, apworld_name, i, timeout_s, classifier_p
 
     with redirect_stdout(out_buf), redirect_stderr(out_buf):
         try:
-            call_generate(yaml_path.name, output_path)
+            call_generate(yaml_path.name, output_path, args)
         except Exception as e:
             raised = e
         finally:
@@ -435,7 +435,6 @@ def find_classifier(classifier_path):
     return classifier
 
 if __name__ == "__main__":
-
     def main(p, args):
         global SUBMITTED
 
@@ -543,7 +542,7 @@ if __name__ == "__main__":
 
                 last_job = p.apply_async(
                     gen_wrapper,
-                    args=(yamls_dir, output_path, actual_apworld, i, args.timeout, args.classifier, queue),
+                    args=(yamls_dir, output_path, actual_apworld, i, args, queue),
                     callback=functools.partial(gen_callback, yamls_dir), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
                     error_callback=functools.partial(error, yamls_dir),
                 )
@@ -569,6 +568,7 @@ if __name__ == "__main__":
     parser.add_argument("--dump-ignored", default=False, action="store_true")
     parser.add_argument("--with-static-worlds", default=None)
     parser.add_argument("--classifier", default=None)
+    parser.add_argument("--skip-output", default=False, action="store_true")
 
     args = parser.parse_args()
 
