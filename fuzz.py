@@ -252,37 +252,38 @@ def get_random_value(name, option):
     return option.default
 
 
-def call_generate(yaml_path, output_path, args):
+def call_generate(yaml_path, args):
     from settings import get_settings
 
     settings = get_settings()
 
-    args = Namespace(
-        **{
-            "weights_file_path": settings.generator.weights_file_path,
-            "sameoptions": False,
-            "player_files_path": yaml_path,
-            "seed": random.randint(0, 1000000000),
-            "multi": 1,
-            "spoiler": 1,
-            "outputpath": output_path,
-            "race": False,
-            "meta_file_path": "meta-doesnt-exist.yaml",
-            "log_level": "info",
-            "yaml_output": 1,
-            "plando": [],
-            "skip_prog_balancing": False,
-            "skip_output": args.skip_output,
-            "csv_output": False,
-            "log_time": False,
-            "spoiler_only": False,
-        }
-    )
-    erargs, seed = GenMain(args)
-    ERmain(erargs, seed)
+    with tempfile.TemporaryDirectory(prefix="apfuzz") as output_path:
+        args = Namespace(
+            **{
+                "weights_file_path": settings.generator.weights_file_path,
+                "sameoptions": False,
+                "player_files_path": yaml_path,
+                "seed": random.randint(0, 1000000000),
+                "multi": 1,
+                "spoiler": 1,
+                "outputpath": output_path,
+                "race": False,
+                "meta_file_path": "meta-doesnt-exist.yaml",
+                "log_level": "info",
+                "yaml_output": 1,
+                "plando": [],
+                "skip_prog_balancing": False,
+                "skip_output": args.skip_output,
+                "csv_output": False,
+                "log_time": False,
+                "spoiler_only": False,
+            }
+        )
+        erargs, seed = GenMain(args)
+        ERmain(erargs, seed)
 
 
-def gen_wrapper(yaml_path, output_path, apworld_name, i, args, queue):
+def gen_wrapper(yaml_path, apworld_name, i, args, queue):
     global CLASSIFIER
     out_buf = StringIO()
 
@@ -301,7 +302,7 @@ def gen_wrapper(yaml_path, output_path, apworld_name, i, args, queue):
 
     with redirect_stdout(out_buf), redirect_stderr(out_buf):
         try:
-            call_generate(yaml_path.name, output_path, args)
+            call_generate(yaml_path.name, args)
         except Exception as e:
             raised = e
         finally:
@@ -509,54 +510,53 @@ if __name__ == "__main__":
         timeout_handler.daemon = True
         timeout_handler.start()
 
-        with tempfile.TemporaryDirectory(prefix="apfuzz") as output_path:
-            while i < args.runs:
-                if apworld_name is None:
-                    actual_apworld = random.choice(valid_worlds)
-                else:
-                    actual_apworld = apworld_name
+        while i < args.runs:
+            if apworld_name is None:
+                actual_apworld = random.choice(valid_worlds)
+            else:
+                actual_apworld = apworld_name
 
-                if len(yamls_per_run_bounds) == 1:
-                    yamls_this_run = yamls_per_run_bounds[0]
-                else:
-                    # +1 here to make the range inclusive
-                    yamls_this_run = random.randrange(
-                        yamls_per_run_bounds[0], yamls_per_run_bounds[1] + 1
-                    )
-
-                random_yamls = [
-                    generate_random_yaml(actual_apworld, meta) for _ in range(yamls_this_run)
-                ]
-
-                SUBMITTED += 1
-
-                # We don't care about the actual gen output, just trash it immediately after gen
-                yamls_dir = tempfile.TemporaryDirectory(prefix="apfuzz")
-                for nb, yaml_content in enumerate(random_yamls):
-                    yaml_path = os.path.join(yamls_dir.name, f"{i}-{nb}.yaml")
-                    open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
-
-                for nb, yaml_content in enumerate(static_yamls):
-                    yaml_path = os.path.join(yamls_dir.name, f"static-{i}-{nb}.yaml")
-                    open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
-
-                last_job = p.apply_async(
-                    gen_wrapper,
-                    args=(yamls_dir, output_path, actual_apworld, i, args, queue),
-                    callback=functools.partial(gen_callback, yamls_dir), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
-                    error_callback=functools.partial(error, yamls_dir),
+            if len(yamls_per_run_bounds) == 1:
+                yamls_this_run = yamls_per_run_bounds[0]
+            else:
+                # +1 here to make the range inclusive
+                yamls_this_run = random.randrange(
+                    yamls_per_run_bounds[0], yamls_per_run_bounds[1] + 1
                 )
 
-                while SUBMITTED >= args.jobs * 10:
-                    # Poll the last job to keep the queue running
-                    last_job.ready()
-                    time.sleep(0.001)
+            random_yamls = [
+                generate_random_yaml(actual_apworld, meta) for _ in range(yamls_this_run)
+            ]
 
-                i += 1
+            SUBMITTED += 1
 
-            while SUBMITTED > 0:
+            # We don't care about the actual gen output, just trash it immediately after gen
+            yamls_dir = tempfile.TemporaryDirectory(prefix="apfuzz")
+            for nb, yaml_content in enumerate(random_yamls):
+                yaml_path = os.path.join(yamls_dir.name, f"{i}-{nb}.yaml")
+                open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
+
+            for nb, yaml_content in enumerate(static_yamls):
+                yaml_path = os.path.join(yamls_dir.name, f"static-{i}-{nb}.yaml")
+                open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
+
+            last_job = p.apply_async(
+                gen_wrapper,
+                args=(yamls_dir, actual_apworld, i, args, queue),
+                callback=functools.partial(gen_callback, yamls_dir), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
+                error_callback=functools.partial(error, yamls_dir),
+            )
+
+            while SUBMITTED >= args.jobs * 10:
+                # Poll the last job to keep the queue running
                 last_job.ready()
-                time.sleep(0.05)
+                time.sleep(0.001)
+
+            i += 1
+
+        while SUBMITTED > 0:
+            last_job.ready()
+            time.sleep(0.05)
 
     parser = ArgumentParser(prog="apfuzz")
     parser.add_argument("-g", "--game", default=None)
