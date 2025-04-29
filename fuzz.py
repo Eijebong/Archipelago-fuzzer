@@ -289,7 +289,8 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
 
     myself = os.getpid()
     def stop():
-        queue.put((myself, apworld_name, i, yaml_path, out_buf))
+        queue.put_nowait((myself, apworld_name, i, yaml_path, out_buf))
+        queue.join()
     timer = threading.Timer(args.timeout, stop)
     timer.start()
 
@@ -307,6 +308,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
             raised = e
         finally:
             timer.cancel()
+            timer.join()
             root_logger = logging.getLogger()
             handlers = root_logger.handlers[:]
             for handler in handlers:
@@ -490,7 +492,7 @@ if __name__ == "__main__":
 
 
         manager = multiprocessing.Manager()
-        queue = manager.Queue()
+        queue = manager.Queue(1000)
         def handle_timeouts():
             while True:
                 try:
