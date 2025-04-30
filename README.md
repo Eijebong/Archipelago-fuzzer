@@ -7,10 +7,10 @@ This is a fairly dumb fuzzer that will generate multiworlds with N random YAMLs 
 
 You need to run archipelago from source. If you don't know how to do that, there's documentation from the archipelago project [here](https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/running%20from%20source.md)
 
-Copy the `fuzz.py` at the root of the archipelago project, you can then run the fuzzer like this:
+Copy the `fuzz.py` file at the root of the archipelago project, you can then run the fuzzer like any other archipelago entry point:
 
 ```
-python3 fuzz.py -r 100 -j 16 -g alttp -n 1
+python fuzz.py -r 100 -j 16 -g alttp -n 1
 ```
 
 This will run 100 tests on the alttp world, with 1 YAML per generation, using 16 jobs.
