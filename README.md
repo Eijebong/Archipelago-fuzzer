@@ -5,7 +5,9 @@ This is a fairly dumb fuzzer that will generate multiworlds with N random YAMLs 
 
 ## How to run this?
 
-You need to run archipelago from source. Copy the `fuzz.py` at the root of the archipelago project, you can then run the fuzzer like this:
+You need to run archipelago from source. If you don't know how to do that, there's documentation from the archipelago project [here](https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/running%20from%20source.md)
+
+Copy the `fuzz.py` at the root of the archipelago project, you can then run the fuzzer like this:
 
 ```
 python3 fuzz.py -r 100 -j 16 -g alttp -n 1
