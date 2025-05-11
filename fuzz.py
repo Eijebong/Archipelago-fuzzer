@@ -377,6 +377,7 @@ class GenOutcome:
     OptionError = 3
 
 
+IS_TTY = sys.stdout.isatty()
 CLASSIFIER = None
 SUCCESS = 0
 FAILURE = 0
@@ -385,28 +386,38 @@ OPTION_ERRORS = 0
 SUBMITTED = 0
 
 
-def gen_callback(yamls_dir, outcome):
+def gen_callback(yamls_dir, args, outcome):
     global SUCCESS, FAILURE, SUBMITTED, OPTION_ERRORS, TIMEOUTS
     SUBMITTED -= 1
 
     if outcome == GenOutcome.Success:
         SUCCESS += 1
-        print(".", end="")
+        if IS_TTY:
+            print(".", end="")
     elif outcome == GenOutcome.Failure:
-        print("F", end="")
         FAILURE += 1
+        if IS_TTY:
+            print("F", end="")
     elif outcome == GenOutcome.Timeout:
-        print("T", end="")
         TIMEOUTS += 1
+        if IS_TTY:
+            print("T", end="")
     elif outcome == GenOutcome.OptionError:
-        print("I", end="")
         OPTION_ERRORS += 1
+        if IS_TTY:
+            print("I", end="")
+
+    # If we're not on a TTY, print progress every once in a while
+    if not IS_TTY:
+        checks_done = SUCCESS + FAILURE + TIMEOUTS + OPTION_ERRORS
+        if (checks_done % (args.runs // 50)) == 0:
+            print(f"{checks_done} / {args.runs} done. {FAILURE} failures, {TIMEOUTS} timeouts, {OPTION_ERRORS} ignored.")
 
     sys.stdout.flush()
 
 
-def error(yamls_dir, raised):
-    return gen_callback(yamls_dir, GenOutcome.Failure)
+def error(yamls_dir, args, raised):
+    return gen_callback(yamls_dir, args, GenOutcome.Failure)
 
 
 def print_status():
@@ -438,6 +449,7 @@ def find_classifier(classifier_path):
     return classifier
 
 if __name__ == "__main__":
+
     def main(p, args):
         global SUBMITTED
 
@@ -504,7 +516,7 @@ if __name__ == "__main__":
                     if CLASSIFIER is not None:
                         outcome = CLASSIFIER.classify(outcome, TimeoutError())
                     dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra)
-                    gen_callback(yamls_dir, outcome)
+                    gen_callback(yamls_dir, args, outcome)
                 except:
                     break
 
@@ -545,8 +557,8 @@ if __name__ == "__main__":
             last_job = p.apply_async(
                 gen_wrapper,
                 args=(yamls_dir, actual_apworld, i, args, queue),
-                callback=functools.partial(gen_callback, yamls_dir), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
-                error_callback=functools.partial(error, yamls_dir),
+                callback=functools.partial(gen_callback, yamls_dir, args), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
+                error_callback=functools.partial(error, yamls_dir, args),
             )
 
             while SUBMITTED >= args.jobs * 10:
