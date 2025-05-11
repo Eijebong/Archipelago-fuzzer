@@ -575,7 +575,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(prog="apfuzz")
     parser.add_argument("-g", "--game", default=None)
     parser.add_argument("-j", "--jobs", default=10, type=int)
-    parser.add_argument("-r", "--runs", type=int)
+    parser.add_argument("-r", "--runs", type=int, required=True)
     parser.add_argument("-n", "--yamls_per_run", default="1", type=str)
     parser.add_argument("-t", "--timeout", default=15, type=int)
     parser.add_argument("-m", "--meta", default=None, type=None)
