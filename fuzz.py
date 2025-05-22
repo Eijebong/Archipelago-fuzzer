@@ -18,6 +18,7 @@ from Options import (
     ItemSet,
     ItemDict,
     LocationSet,
+    NumericOption,
     OptionSet,
     FreeText,
     PlandoConnections,
@@ -243,6 +244,9 @@ def get_random_value(name, option):
         return random.sample(
             list(option.valid_keys), k=random.randint(0, len(option.valid_keys))
         )
+
+    if issubclass(option, NumericOption):
+        return option("random").value
 
     if issubclass(option, FreeText):
         return "".join(
