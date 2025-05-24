@@ -32,6 +32,7 @@ import Utils
 
 from Generate import main as GenMain
 from Main import main as ERmain
+from settings import get_settings
 from argparse import Namespace, ArgumentParser
 from concurrent.futures import TimeoutError
 import ctypes
@@ -596,6 +597,10 @@ if __name__ == "__main__":
         if hasattr(CLASSIFIER, "setup"):
             getattr(CLASSIFIER, "setup")(args)
 
+    # This is just to make sure that the host.yaml file exists by the time we fork
+    # so that a first run on a new installation doesn't throw out failures until
+    # the host.yaml from the first gen is written
+    get_settings()
     try:
         can_fork = hasattr(os, "fork")
         # fork here is way faster because it doesn't have to reload all worlds, but it's only available on some platforms
