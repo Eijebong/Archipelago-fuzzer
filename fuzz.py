@@ -29,6 +29,7 @@ from Options import (
 )
 from Utils import __version__, local_path
 import Utils
+import settings
 
 from Generate import main as GenMain
 from Main import main as ERmain
@@ -58,6 +59,8 @@ import yaml
 
 
 OUT_DIR = f"fuzz_output"
+settings.no_gui = True
+settings.skip_autosave = True
 
 
 # We patch this because AP can't keep its hands to itself and has to start a thread to clean stuff up.
