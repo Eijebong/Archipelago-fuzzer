@@ -9,6 +9,7 @@ sys.path.insert(0, ap_path)
 if __name__ == "__mp_main__":
     sys.stderr = None
 
+import yappi
 from worlds import AutoWorldRegister
 from Options import (
     get_option_groups,
@@ -311,10 +312,12 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
 
     with redirect_stdout(out_buf), redirect_stderr(out_buf):
         try:
+            yappi.start(builtins=True, profile_threads=True)
             call_generate(yaml_path.name, args)
         except Exception as e:
             raised = e
         finally:
+            yappi.stop()
             timer.cancel()
             timer.join()
             root_logger = logging.getLogger()
@@ -322,6 +325,9 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
             for handler in handlers:
                 root_logger.removeHandler(handler)
                 handler.close()
+
+
+            yappi.get_func_stats().save(os.path.join(OUT_DIR, 'profile', f'profile_{os.getpid()}.prof'))
 
             outcome = GenOutcome.Success
             if raised:
@@ -478,6 +484,7 @@ if __name__ == "__main__":
         if os.path.exists(OUT_DIR):
             shutil.rmtree(OUT_DIR)
         os.makedirs(OUT_DIR)
+        os.makedirs(os.path.join(OUT_DIR, 'profile'))
 
         sys.stdout.write("\x1b[2J\x1b[H")
         sys.stdout.flush()
@@ -618,6 +625,10 @@ if __name__ == "__main__":
     except Exception as e:
         traceback.print_exc()
     finally:
+        aggregated_stats = yappi.YFuncStats([os.path.join(OUT_DIR, 'profile', f) for f in os.listdir(os.path.join(OUT_DIR, 'profile')) if f.startswith('profile_')])
+        aggregated_stats.strip_dirs()
+        aggregated_stats.save(os.path.join(OUT_DIR, 'full.prof'), "callgrind")
+
         print_status()
         sys.exit((FAILURE + TIMEOUTS) != 0)
 
