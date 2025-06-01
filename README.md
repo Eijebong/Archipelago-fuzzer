@@ -114,3 +114,15 @@ class Hook(BaseHook):
 
 You can then pass the following argument: `--hook your_file:Hook`, note that it should be the name of your file, without the extension.
 The `hooks` folder in this repository contains examples of some usage that I personally made of hooks.
+
+### Profiler hook
+
+You can get a profile in a callgrind format by using the provided `profile` hook.
+
+Example:
+
+```
+python -O fuzz.py -r 1000 -n 1 -g pokemon_crystal -j24 --hook hooks.profile:Hook
+```
+
+The output (`fuzz_output/full.prof`) can be read with a tool such as `qcachegrind`.
