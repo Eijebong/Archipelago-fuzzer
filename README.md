@@ -29,7 +29,7 @@ The output will be available in `./fuzz_output`.
 - `--skip-output` specifies to skip the output step of generation.
 - `--dump-ignored` makes it so option errors are also dumped in the result.
 - `--with-static-worlds` takes a path to a directory containing YAML to include in every generation. Not recursive.
-- `--classifier` takes a `module:class` string to a classifier. More information about that below
+- `--hook` takes a `module:class` string to a hook and can be specified multiple times. More information about that below
 
 ## Meta files
 
@@ -48,41 +48,49 @@ Note that unlike an archipelago meta file, this will override the values in the
 generated YAML, there's no implicit application of options at generation time
 so you don't need to provide the meta file to report bugs.
 
-## Classifiers
+## Hooks
 
 To repurpose the fuzzer for some specific bug testing, it can be useful to
 monkeypatch archipelago before generation and/or to reclassify some failures.
-That's where a classifier comes in.
+That's where a hook comes in.
 
 You can declare a class like this one in a file alongside `fuzz.py` in your
 archipelago installation:
 
 ```py
-from fuzz import GenOutcome
+from fuzz import BaseHook, GenOutcome
 
-class Classifier:
-    def setup(self, args):
+class Hook(BaseHook):
+    def setup_main(self, args):
         """
         The args parameter is the `Namespace` containing the parsed arguments from the CLI.
         setup is classed as early as possible after argument parsing in the
-        main process and is also called in every worker process. It is
-        guaranteed to be only ever called once per process. In the case of
-        linux where `fork` is available, it'll be called once, before the `fork`
-        happens.
+        main process. It is guaranteed to be only ever called once. It will
+        always be called before any worker process is started
         """
         pass
 
-    def classify(self, outcome, exception):
+    def setup_worker(self, args):
+        """
+        The args parameter is the `Namespace` containing the parsed arguments from the CLI.
+        setup is classed as early as possible after starting a worker process.
+        It is guaranteed to only ever be called once per worker process, before
+        any generation attempt.
+        """
+        pass
+
+    def reclassify_outcome(self, outcome, exception):
         """
         The outcome is a `GenOutcome` from generation.
         The exception is the exception raised during generation if one happened, None otherwise.
 
-        This function is called in the main process just after the result is
-        returned from worker processes. It must be careful no to raise
-        exceptions as that will halt the fuzzer.
+        This function is called in the worker process just after the result is first decided.
+        The one exception is for timeouts where the outcome has to be processed on the main process.
+        As such, this function must do very minimal work and not make
+        assumptions as whether it's running in worker or in the main process.
         """
         return GenOutcome.Success
 ```
 
-You can then pass the following argument: `--classifier your_file:Classifier`, note that it should be the name of your file, without the extension.
-The `classifiers` folder in this repository contains examples of some usage that I personally made of classifiers.
+You can then pass the following argument: `--hook your_file:Hook`, note that it should be the name of your file, without the extension.
+The `hooks` folder in this repository contains examples of some usage that I personally made of hooks.

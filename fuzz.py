@@ -61,6 +61,7 @@ import yaml
 OUT_DIR = f"fuzz_output"
 settings.no_gui = True
 settings.skip_autosave = True
+MP_HOOKS = []
 
 
 # We patch this because AP can't keep its hands to itself and has to start a thread to clean stuff up.
@@ -292,7 +293,8 @@ def call_generate(yaml_path, args):
 
 
 def gen_wrapper(yaml_path, apworld_name, i, args, queue):
-    global CLASSIFIER
+    global MP_HOOKS
+
     out_buf = StringIO()
 
     myself = os.getpid()
@@ -302,15 +304,17 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
     timer = threading.Timer(args.timeout, stop)
     timer.start()
 
-    if args.classifier is not None and CLASSIFIER is None:
-        CLASSIFIER = find_classifier(args.classifier)
-        if hasattr(CLASSIFIER, "setup"):
-            getattr(CLASSIFIER, "setup")()
 
     raised = None
 
     with redirect_stdout(out_buf), redirect_stderr(out_buf):
         try:
+            # If we have hooks defined in args but they're not registered yet, register them
+            if args.hook and not MP_HOOKS:
+                for hook_class_path in args.hook:
+                    hook = find_hook(hook_class_path)
+                    hook.setup_worker(args)
+
             call_generate(yaml_path.name, args)
         except Exception as e:
             raised = e
@@ -335,8 +339,8 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
                 else:
                     outcome = GenOutcome.Failure
 
-            if CLASSIFIER is not None:
-                outcome = CLASSIFIER.classify(outcome, raised)
+            for hook in MP_HOOKS:
+                outcome = hook.reclassify_outcome(outcome, raised)
 
             if outcome == GenOutcome.Success:
                 return outcome
@@ -386,7 +390,6 @@ class GenOutcome:
 
 
 IS_TTY = sys.stdout.isatty()
-CLASSIFIER = None
 SUCCESS = 0
 FAILURE = 0
 TIMEOUTS = 0
@@ -438,8 +441,8 @@ def print_status():
     print("Time taken:{:.2f}s".format(time.time() - START))
 
 
-def find_classifier(classifier_path):
-    modulepath, objectpath = classifier_path.split(':')
+def find_hook(hook_path):
+    modulepath, objectpath = hook_path.split(':')
     obj = __import__(modulepath)
     for inner in modulepath.split('.')[1:]:
         obj = getattr(obj, inner)
@@ -447,16 +450,38 @@ def find_classifier(classifier_path):
         obj = getattr(obj, inner)
 
     if not isinstance(obj, type):
-        raise RuntimeError("the classifier argument should refer to a class in a module")
+        raise RuntimeError("the hook argument should refer to a class in a module")
 
-    classifier = obj()
+    if issubclass(obj, BaseHook):
+        raise RuntimeError("the hook {} is not a subclass of `fuzz.BaseHook`)".format(hook_path))
 
-    if not hasattr(classifier, "classify"):
-        raise RuntimeError("The classifier class must have a classify method")
+    return obj()
 
-    return classifier
+
+class BaseHook:
+    def setup_main(self, args):
+        """
+        This function is guaranteed to only ever be called once, in the main process.
+        """
+        pass
+
+    def setup_worker(self, args):
+        """
+        This function is guaranteed to only ever be called once per worker process. It can be used to load extra apworlds for example.
+        """
+        pass
+
+    def reclassify_outcome(self, outcome, raised):
+        """
+        This function is called once after a generation outcome has been decided.
+        You can reclassify the outcome with this before it is returned to the main process by returning a new `GenOutcome`
+        Note that because timeouts are processed by the main process and not by the worker itself (as it is busy timing out),
+        this function can be called from both the main process and the workers.
+        """
+        return outcome
 
 if __name__ == "__main__":
+    MAIN_HOOKS = []
 
     def main(p, args):
         global SUBMITTED
@@ -521,8 +546,8 @@ if __name__ == "__main__":
 
                     extra = f"[...] Generation killed here after {args.timeout}s"
                     outcome = GenOutcome.Timeout
-                    if CLASSIFIER is not None:
-                        outcome = CLASSIFIER.classify(outcome, TimeoutError())
+                    for hook in MAIN_HOOKS:
+                        outcome = hook.classify(outcome, TimeoutError())
                     dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra)
                     gen_callback(yamls_dir, args, outcome)
                 except:
@@ -589,16 +614,16 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--meta", default=None, type=None)
     parser.add_argument("--dump-ignored", default=False, action="store_true")
     parser.add_argument("--with-static-worlds", default=None)
-    parser.add_argument("--classifier", default=None)
+    parser.add_argument("--hook", action="append", default=[])
     parser.add_argument("--skip-output", default=False, action="store_true")
 
     args = parser.parse_args()
 
-    # Get the classifier early just to check that it exists before forking
-    if args.classifier is not None:
-        CLASSIFIER = find_classifier(args.classifier)
-        if hasattr(CLASSIFIER, "setup"):
-            getattr(CLASSIFIER, "setup")(args)
+    for hook_class_path in args.hook:
+        hook = find_hook(hook_class_path)
+        hook.setup_main(args)
+
+        MAIN_HOOKS.append(hook)
 
     # This is just to make sure that the host.yaml file exists by the time we fork
     # so that a first run on a new installation doesn't throw out failures until
