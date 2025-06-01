@@ -314,6 +314,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
                 for hook_class_path in args.hook:
                     hook = find_hook(hook_class_path)
                     hook.setup_worker(args)
+                    MP_HOOKS.append(hook)
 
             call_generate(yaml_path.name, args)
         except Exception as e:
