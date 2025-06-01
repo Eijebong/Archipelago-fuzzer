@@ -505,6 +505,12 @@ if __name__ == "__main__":
             shutil.rmtree(OUT_DIR)
         os.makedirs(OUT_DIR)
 
+        for hook_class_path in args.hook:
+            hook = find_hook(hook_class_path)
+            hook.setup_main(args)
+
+            MAIN_HOOKS.append(hook)
+
         sys.stdout.write("\x1b[2J\x1b[H")
         sys.stdout.flush()
 
@@ -619,12 +625,6 @@ if __name__ == "__main__":
     parser.add_argument("--skip-output", default=False, action="store_true")
 
     args = parser.parse_args()
-
-    for hook_class_path in args.hook:
-        hook = find_hook(hook_class_path)
-        hook.setup_main(args)
-
-        MAIN_HOOKS.append(hook)
 
     # This is just to make sure that the host.yaml file exists by the time we fork
     # so that a first run on a new installation doesn't throw out failures until
