@@ -90,6 +90,26 @@ class Hook(BaseHook):
         assumptions as whether it's running in worker or in the main process.
         """
         return GenOutcome.Success
+
+    def before_generate(self):
+        """
+        This method will be called once per generation, just before we actually call into archipelago
+        """
+        pass
+
+    def after_generate(self):
+        """
+        This method will be called once per generation except if the generation timed out.
+        If you need to inspect the failure, use `reclassify_outcome` instead.
+        """
+        pass
+
+    def finalize(self):
+        """
+        This method will be called once just before the main process exits. It
+        will only be called on the main process
+        """
+        pass
 ```
 
 You can then pass the following argument: `--hook your_file:Hook`, note that it should be the name of your file, without the extension.

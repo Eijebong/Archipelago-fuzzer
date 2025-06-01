@@ -316,6 +316,9 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
                     hook.setup_worker(args)
                     MP_HOOKS.append(hook)
 
+            for hook in MP_HOOKS:
+                hook.before_generate()
+
             call_generate(yaml_path.name, args)
         except Exception as e:
             raised = e
@@ -327,6 +330,9 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
             for handler in handlers:
                 root_logger.removeHandler(handler)
                 handler.close()
+
+            for hook in MP_HOOKS:
+                hook.after_generate()
 
             outcome = GenOutcome.Success
             if raised:
@@ -480,6 +486,15 @@ class BaseHook:
         this function can be called from both the main process and the workers.
         """
         return outcome
+
+    def before_generate(self):
+        pass
+
+    def after_generate(self):
+        pass
+
+    def finalize(self):
+        pass
 
 if __name__ == "__main__":
     MAIN_HOOKS = []
@@ -645,5 +660,9 @@ if __name__ == "__main__":
         traceback.print_exc()
     finally:
         print_status()
+
+        for hook in MAIN_HOOKS:
+            hook.finalize()
+
         sys.exit((FAILURE + TIMEOUTS) != 0)
 
