@@ -170,7 +170,7 @@ def generate_random_yaml(world_name, meta):
 
     game_name, world = world_from_apworld_name(world_name)
     if world is None:
-        raise Exception(f"Failed to resolve apworld from apworld name: {apworld_name}")
+        raise Exception(f"Failed to resolve apworld from apworld name: {world_name}")
 
     game_options = {}
     option_groups = get_option_groups(world)
