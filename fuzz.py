@@ -228,7 +228,11 @@ def get_random_value(name, option):
         return option.default
 
     if issubclass(option, (Choice, Toggle)):
-        return random.choice(list(option.options.keys()))
+        valid_choices = [key for key in option.options.keys() if key not in option.aliases]
+        if not valid_choices:
+            valid_choices = list(option.options.keys())
+
+        return random.choice(valid_choices)
 
     if issubclass(option, Range):
         return random.randint(option.range_start, option.range_end)
