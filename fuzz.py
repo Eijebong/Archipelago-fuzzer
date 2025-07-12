@@ -301,12 +301,14 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
 
     out_buf = StringIO()
 
-    myself = os.getpid()
-    def stop():
-        queue.put_nowait((myself, apworld_name, i, yaml_path, out_buf))
-        queue.join()
-    timer = threading.Timer(args.timeout, stop)
-    timer.start()
+    timer = None
+    if args.timeout > 0:
+        myself = os.getpid()
+        def stop():
+            queue.put_nowait((myself, apworld_name, i, yaml_path, out_buf))
+            queue.join()
+        timer = threading.Timer(args.timeout, stop)
+        timer.start()
 
 
     raised = None
@@ -327,8 +329,9 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
         except Exception as e:
             raised = e
         finally:
-            timer.cancel()
-            timer.join()
+            if timer is not None:
+                timer.cancel()
+                timer.join()
             root_logger = logging.getLogger()
             handlers = root_logger.handlers[:]
             for handler in handlers:
