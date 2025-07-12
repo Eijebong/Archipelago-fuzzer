@@ -435,7 +435,8 @@ def gen_callback(yamls_dir, args, outcome):
     # If we're not on a TTY, print progress every once in a while
     if not IS_TTY:
         checks_done = SUCCESS + FAILURE + TIMEOUTS + OPTION_ERRORS
-        if (checks_done % (args.runs // 50)) == 0:
+        step = args.runs // 50
+        if step == 0 or (checks_done % step) == 0:
             print(f"{checks_done} / {args.runs} done. {FAILURE} failures, {TIMEOUTS} timeouts, {OPTION_ERRORS} ignored.")
 
     sys.stdout.flush()
