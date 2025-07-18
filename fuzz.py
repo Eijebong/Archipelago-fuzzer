@@ -578,7 +578,7 @@ if __name__ == "__main__":
                     extra = f"[...] Generation killed here after {args.timeout}s"
                     outcome = GenOutcome.Timeout
                     for hook in MAIN_HOOKS:
-                        outcome = hook.classify(outcome, TimeoutError())
+                        outcome = hook.reclassify_outcome(outcome, TimeoutError())
                     dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra)
                     gen_callback(yamls_dir, args, outcome)
                 except:
