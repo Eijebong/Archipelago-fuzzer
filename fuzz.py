@@ -293,7 +293,7 @@ def call_generate(yaml_path, args):
             }
         )
         erargs, seed = GenMain(args)
-        ERmain(erargs, seed)
+        return ERmain(erargs, seed)
 
 
 def gen_wrapper(yaml_path, apworld_name, i, args, queue):
@@ -312,6 +312,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
 
 
     raised = None
+    mw = None
 
     with redirect_stdout(out_buf), redirect_stderr(out_buf):
         try:
@@ -325,7 +326,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
             for hook in MP_HOOKS:
                 hook.before_generate()
 
-            call_generate(yaml_path.name, args)
+            mw = call_generate(yaml_path.name, args)
         except Exception as e:
             raised = e
         finally:
@@ -339,7 +340,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
                 handler.close()
 
             for hook in MP_HOOKS:
-                hook.after_generate()
+                hook.after_generate(mw)
 
             outcome = GenOutcome.Success
             if raised:
@@ -498,7 +499,7 @@ class BaseHook:
     def before_generate(self):
         pass
 
-    def after_generate(self):
+    def after_generate(self, mw):
         pass
 
     def finalize(self):
