@@ -27,16 +27,17 @@ from Options import (
     OptionDict,
     OptionError,
 )
-from Utils import __version__, local_path
+from Utils import __version__
 import Utils
 import settings
 
 from Generate import main as GenMain
+from Fill import FillError
 from Main import main as ERmain
 from settings import get_settings
 from argparse import Namespace, ArgumentParser
 from concurrent.futures import TimeoutError
-import ctypes
+from collections import defaultdict
 import threading
 from contextlib import redirect_stderr, redirect_stdout
 from enum import Enum
@@ -44,6 +45,7 @@ from functools import wraps
 from io import StringIO
 from multiprocessing import Pool
 
+import json
 import functools
 import logging
 import multiprocessing
@@ -370,7 +372,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
 
             dump_generation_output(outcome, apworld_name, i, yaml_path, out_buf, extra)
 
-            return outcome
+            return outcome, raised
 
 
 def dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra=None):
@@ -410,9 +412,15 @@ FAILURE = 0
 TIMEOUTS = 0
 OPTION_ERRORS = 0
 SUBMITTED = 0
+REPORT = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: [])))
 
 
-def gen_callback(yamls_dir, args, outcome):
+def gen_callback(yamls_dir, apworld_name, i, args, outcome):
+    if isinstance(outcome, tuple):
+        outcome, exc = outcome
+    else:
+        exc = None
+
     global SUCCESS, FAILURE, SUBMITTED, OPTION_ERRORS, TIMEOUTS
     SUBMITTED -= 1
 
@@ -421,10 +429,12 @@ def gen_callback(yamls_dir, args, outcome):
         if IS_TTY:
             print(".", end="")
     elif outcome == GenOutcome.Failure:
+        REPORT[apworld_name][type(exc)][str(exc)].append(i)
         FAILURE += 1
         if IS_TTY:
             print("F", end="")
     elif outcome == GenOutcome.Timeout:
+        REPORT[apworld_name][TimeoutError][""].append(i)
         TIMEOUTS += 1
         if IS_TTY:
             print("T", end="")
@@ -443,8 +453,8 @@ def gen_callback(yamls_dir, args, outcome):
     sys.stdout.flush()
 
 
-def error(yamls_dir, args, raised):
-    return gen_callback(yamls_dir, args, GenOutcome.Failure)
+def error(yamls_dir, apworld_name, i, args, raised):
+    return gen_callback(yamls_dir, apworld_name, i, args, GenOutcome.Failure)
 
 
 def print_status():
@@ -494,7 +504,7 @@ class BaseHook:
         Note that because timeouts are processed by the main process and not by the worker itself (as it is busy timing out),
         this function can be called from both the main process and the workers.
         """
-        return outcome
+        return outcome, raised
 
     def before_generate(self):
         pass
@@ -504,6 +514,27 @@ class BaseHook:
 
     def finalize(self):
         pass
+
+
+def write_report(report):
+    computed_report = {}
+
+    for game_name, game_report in report.items():
+        computed_report[game_name] = {}
+
+        for exc_type, exc_report in game_report.items():
+            for exc_str, yamls in exc_report.items():
+                if exc_type == FillError:
+                    computed_report[game_name]["FillError"] = yamls
+                else:
+                    if exc_str:
+                        computed_report[game_name][exc_str] = yamls
+                    else:
+                        computed_report[game_name][str(exc_type)] = yamls
+
+    with open(os.path.join(OUT_DIR, "report.json"), "w") as fd:
+        fd.write(json.dumps(computed_report))
+
 
 if __name__ == "__main__":
     MAIN_HOOKS = []
@@ -580,7 +611,7 @@ if __name__ == "__main__":
                     for hook in MAIN_HOOKS:
                         outcome = hook.reclassify_outcome(outcome, TimeoutError())
                     dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra)
-                    gen_callback(yamls_dir, args, outcome)
+                    gen_callback(yamls_dir, apworld_name, i, args, outcome)
                 except:
                     break
 
@@ -621,8 +652,8 @@ if __name__ == "__main__":
             last_job = p.apply_async(
                 gen_wrapper,
                 args=(yamls_dir, actual_apworld, i, args, queue),
-                callback=functools.partial(gen_callback, yamls_dir, args), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
-                error_callback=functools.partial(error, yamls_dir, args),
+                callback=functools.partial(gen_callback, yamls_dir, actual_apworld, i, args), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
+                error_callback=functools.partial(error, yamls_dir, actual_apworld, i, args),
             )
 
             while SUBMITTED >= args.jobs * 10:
@@ -673,5 +704,6 @@ if __name__ == "__main__":
         for hook in MAIN_HOOKS:
             hook.finalize()
 
+        write_report(REPORT)
         sys.exit((FAILURE + TIMEOUTS) != 0)
 
