@@ -520,17 +520,17 @@ def write_report(report):
     computed_report = {}
 
     for game_name, game_report in report.items():
-        computed_report[game_name] = {}
+        computed_report[game_name] = defaultdict(lambda: [])
 
         for exc_type, exc_report in game_report.items():
             for exc_str, yamls in exc_report.items():
                 if exc_type == FillError:
-                    computed_report[game_name]["FillError"] = yamls
+                    computed_report[game_name]["FillError"].extend(yamls)
                 else:
                     if exc_str:
-                        computed_report[game_name][exc_str] = yamls
+                        computed_report[game_name][exc_str].extend(yamls)
                     else:
-                        computed_report[game_name][str(exc_type)] = yamls
+                        computed_report[game_name][str(exc_type)].extend(yamls)
 
     with open(os.path.join(OUT_DIR, "report.json"), "w") as fd:
         fd.write(json.dumps(computed_report))
