@@ -393,7 +393,7 @@ def dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra=N
         shutil.copy(os.path.join(yamls_dir.name, yaml_file), error_output_dir)
 
     error_log_path = os.path.join(error_output_dir, f"{i}.log")
-    with open(error_log_path, "w") as fd:
+    with open(error_log_path, "w", encoding='utf-8') as fd:
         fd.write(out_buf.getvalue())
         if extra is not None:
             fd.write(extra)
@@ -532,7 +532,7 @@ def write_report(report):
                     else:
                         computed_report[game_name][str(exc_type)].extend(yamls)
 
-    with open(os.path.join(OUT_DIR, "report.json"), "w") as fd:
+    with open(os.path.join(OUT_DIR, "report.json"), "w", encoding='utf-8') as fd:
         fd.write(json.dumps(computed_report))
 
 
@@ -544,7 +544,7 @@ if __name__ == "__main__":
 
         apworld_name = args.game
         if args.meta:
-            with open(args.meta, "r") as fd:
+            with open(args.meta, "r", encoding='utf-8-sig') as fd:
                 meta = yaml.safe_load(fd.read())
         else:
             meta = {}
@@ -594,7 +594,7 @@ if __name__ == "__main__":
                 path = os.path.join(args.with_static_worlds, yaml_file)
                 if not os.path.isfile(path):
                     continue
-                with open(path, "r") as fd:
+                with open(path, "r", encoding='utf-8-sig') as fd:
                     static_yamls.append(fd.read())
 
 
