@@ -91,9 +91,12 @@ class Hook(BaseHook):
         """
         return GenOutcome.Success
 
-    def before_generate(self):
+    def before_generate(self, args):
         """
-        This method will be called once per generation, just before we actually call into archipelago
+        This method will be called once per generation, just before we actually
+        call into archipelago. The `args` argument contains the `Namespace`
+        object passed to archipelago for generation. It can be modified since
+        this happens before generation.
         """
         pass
 

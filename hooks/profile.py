@@ -3,7 +3,7 @@ import yappi
 from fuzz import BaseHook, OUT_DIR
 
 class Hook(BaseHook):
-    def before_generate(self):
+    def before_generate(self, _args):
         yappi.start(builtins=True, profile_threads=True)
 
     def after_generate(self):

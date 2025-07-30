@@ -294,6 +294,9 @@ def call_generate(yaml_path, args):
                 "spoiler_only": False,
             }
         )
+        for hook in MP_HOOKS:
+            hook.before_generate(args)
+
         erargs, seed = GenMain(args)
         return ERmain(erargs, seed)
 
@@ -324,9 +327,6 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
                     hook = find_hook(hook_class_path)
                     hook.setup_worker(args)
                     MP_HOOKS.append(hook)
-
-            for hook in MP_HOOKS:
-                hook.before_generate()
 
             mw = call_generate(yaml_path.name, args)
         except Exception as e:
@@ -506,7 +506,7 @@ class BaseHook:
         """
         return outcome, raised
 
-    def before_generate(self):
+    def before_generate(self, args):
         pass
 
     def after_generate(self, mw):
