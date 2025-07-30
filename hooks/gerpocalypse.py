@@ -29,5 +29,5 @@ Kingdom Hearts: {}
     def reclassify_outcome(self, outcome, exception):
         message = str(exception).lower()
         if "no connected region" in message or "tried to search through an entrance" in message:
-            return GenOutcome.Failure
-        return GenOutcome.Success
+            return GenOutcome.Failure, exception
+        return GenOutcome.Success, None

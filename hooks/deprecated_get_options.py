@@ -14,5 +14,5 @@ class Hook(BaseHook):
 
     def reclassify_outcome(self, outcome, exception):
         if isinstance(exception, FuzzException):
-            return GenOutcome.Failure
-        return GenOutcome.Success
+            return GenOutcome.Failure, exception
+        return GenOutcome.Success, None

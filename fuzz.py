@@ -357,7 +357,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
                     outcome = GenOutcome.Failure
 
             for hook in MP_HOOKS:
-                outcome = hook.reclassify_outcome(outcome, raised)
+                outcome, raised = hook.reclassify_outcome(outcome, raised)
 
             if outcome == GenOutcome.Success:
                 return outcome
@@ -609,7 +609,7 @@ if __name__ == "__main__":
                     extra = f"[...] Generation killed here after {args.timeout}s"
                     outcome = GenOutcome.Timeout
                     for hook in MAIN_HOOKS:
-                        outcome = hook.reclassify_outcome(outcome, TimeoutError())
+                        outcome, _ = hook.reclassify_outcome(outcome, TimeoutError())
                     dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra)
                     gen_callback(yamls_dir, apworld_name, i, args, outcome)
                 except:
