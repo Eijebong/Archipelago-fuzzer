@@ -346,6 +346,9 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
             except Exception as e:
                 raised = e
             finally:
+                for hook in MP_HOOKS:
+                    hook.after_generate(mw)
+
                 if timer is not None:
                     timer.cancel()
                     timer.join()
@@ -354,9 +357,6 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
                 for handler in handlers:
                     root_logger.removeHandler(handler)
                     handler.close()
-
-                for hook in MP_HOOKS:
-                    hook.after_generate(mw)
 
                 outcome = GenOutcome.Success
                 if raised:
