@@ -635,6 +635,8 @@ if __name__ == "__main__":
                     gen_callback(yamls_dir, apworld_name, i, args, outcome)
                 except KeyboardInterrupt:
                     break
+                except EOFError:
+                    break
                 except Exception as exc:
                     extra = "[...] Exception while timing out:\n {}".format("\n".join(traceback.format_exception(exc)))
                     dump_generation_output(GenOutcome.Timeout, apworld_name, i, yamls_dir, out_buf, extra)
