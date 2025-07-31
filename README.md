@@ -100,12 +100,12 @@ class Hook(BaseHook):
         """
         pass
 
-    def after_generate(self, multiworld):
+    def after_generate(self, multiworld, output_dir):
         """
         This method will be called once per generation except if the generation timed out.
         If you need to inspect the failure, use `reclassify_outcome` instead.
-        If the generation, multiworld is the object returned by archipelago on
-        success, otherwise it's None
+        If the generation succeeds, multiworld is the object returned by
+        archipelago on success, otherwise it's None
         """
         pass
 

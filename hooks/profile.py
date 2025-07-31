@@ -6,7 +6,7 @@ class Hook(BaseHook):
     def before_generate(self, _args):
         yappi.start(builtins=True, profile_threads=True)
 
-    def after_generate(self, _mw):
+    def after_generate(self, _mw, _output_dir):
         yappi.stop()
         yappi.get_func_stats().save(os.path.join(OUT_DIR, 'profile', f'profile_{os.getpid()}.prof'))
 
