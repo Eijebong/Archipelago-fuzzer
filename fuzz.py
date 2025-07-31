@@ -45,6 +45,7 @@ from functools import wraps
 from io import StringIO
 from multiprocessing import Pool
 
+import importlib
 import json
 import functools
 import logging
@@ -469,9 +470,7 @@ def print_status():
 
 def find_hook(hook_path):
     modulepath, objectpath = hook_path.split(':')
-    obj = __import__(modulepath)
-    for inner in modulepath.split('.')[1:]:
-        obj = getattr(obj, inner)
+    obj = importlib.import_module(modulepath)
     for inner in objectpath.split('.'):
         obj = getattr(obj, inner)
 
