@@ -139,7 +139,7 @@ def world_from_apworld_name(apworld_name):
         if world.__module__.startswith(f"worlds.{apworld_name}"):
             return name, world
 
-    raise Exception(f"Couldn't find loaded workd with world: {apworld_name}")
+    raise Exception(f"Couldn't find loaded world with world: {apworld_name}")
 
 
 # See https://github.com/yaml/pyyaml/issues/103
