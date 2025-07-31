@@ -280,38 +280,37 @@ def get_random_value(name, option):
     return option.default
 
 
-def call_generate(yaml_path, args):
+def call_generate(yaml_path, args, output_path):
     from settings import get_settings
 
     settings = get_settings()
 
-    with tempfile.TemporaryDirectory(prefix="apfuzz") as output_path:
-        args = Namespace(
-            **{
-                "weights_file_path": settings.generator.weights_file_path,
-                "sameoptions": False,
-                "player_files_path": yaml_path,
-                "seed": random.randint(0, 1000000000),
-                "multi": 1,
-                "spoiler": 1,
-                "outputpath": output_path,
-                "race": False,
-                "meta_file_path": "meta-doesnt-exist.yaml",
-                "log_level": "info",
-                "yaml_output": 1,
-                "plando": [],
-                "skip_prog_balancing": False,
-                "skip_output": args.skip_output,
-                "csv_output": False,
-                "log_time": False,
-                "spoiler_only": False,
-            }
-        )
-        for hook in MP_HOOKS:
-            hook.before_generate(args)
+    args = Namespace(
+        **{
+            "weights_file_path": settings.generator.weights_file_path,
+            "sameoptions": False,
+            "player_files_path": yaml_path,
+            "seed": random.randint(0, 1000000000),
+            "multi": 1,
+            "spoiler": 1,
+            "outputpath": output_path,
+            "race": False,
+            "meta_file_path": "meta-doesnt-exist.yaml",
+            "log_level": "info",
+            "yaml_output": 1,
+            "plando": [],
+            "skip_prog_balancing": False,
+            "skip_output": args.skip_output,
+            "csv_output": False,
+            "log_time": False,
+            "spoiler_only": False,
+        }
+    )
+    for hook in MP_HOOKS:
+        hook.before_generate(args)
 
-        erargs, seed = GenMain(args)
-        return ERmain(erargs, seed)
+    erargs, seed = GenMain(args)
+    return ERmain(erargs, seed)
 
 
 def gen_wrapper(yaml_path, apworld_name, i, args, queue):
@@ -333,7 +332,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
     mw = None
 
     try:
-        with redirect_stdout(out_buf), redirect_stderr(out_buf):
+        with redirect_stdout(out_buf), redirect_stderr(out_buf), tempfile.TemporaryDirectory(prefix="apfuzz") as output_path:
             try:
                 # If we have hooks defined in args but they're not registered yet, register them
                 if args.hook and not MP_HOOKS:
@@ -342,12 +341,12 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
                         hook.setup_worker(args)
                         MP_HOOKS.append(hook)
 
-                mw = call_generate(yaml_path.name, args)
+                mw = call_generate(yaml_path.name, args, output_path)
             except Exception as e:
                 raised = e
             finally:
                 for hook in MP_HOOKS:
-                    hook.after_generate(mw)
+                    hook.after_generate(mw, output_path)
 
                 if timer is not None:
                     timer.cancel()
@@ -529,7 +528,7 @@ class BaseHook:
     def before_generate(self, args):
         pass
 
-    def after_generate(self, mw):
+    def after_generate(self, mw, output_path):
         pass
 
     def finalize(self):
