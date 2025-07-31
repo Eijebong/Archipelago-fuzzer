@@ -612,8 +612,13 @@ if __name__ == "__main__":
                         outcome, _ = hook.reclassify_outcome(outcome, TimeoutError())
                     dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra)
                     gen_callback(yamls_dir, apworld_name, i, args, outcome)
-                except:
+                except KeyboardInterrupt:
                     break
+                except Exception as exc:
+                    extra = "[...] Exception while timing out:\n {}".format("\n".join(traceback.format_exception(exc)))
+                    dump_generation_output(GenOutcome.Timeout, apworld_name, i, yamls_dir, out_buf, extra)
+                    gen_callback(yamls_dir, apworld_name, i, args, outcome)
+                    continue
 
         timeout_handler = threading.Thread(target=handle_timeouts)
         timeout_handler.daemon = True
