@@ -29,7 +29,7 @@ from Options import (
     OptionDict,
     OptionError,
 )
-from Utils import __version__
+from Utils import __version__ as __ap_version__
 import Utils
 import settings
 
@@ -121,7 +121,7 @@ def patched_init_logging(
         sys.excepthook = handle_exception
 
     logging.info(
-        f"Archipelago ({__version__}) logging initialized"
+        f"Archipelago ({__ap_version__}) logging initialized"
         f" on {platform.platform()}"
         f" running Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     )
@@ -206,11 +206,10 @@ def generate_random_yaml(world_name, meta):
             )
 
     yaml_content = {
-        "description": "%s Template, generated with https://github.com/Eijebong/Archipelago-fuzzer"
-        % game_name,
+        "description": f"{game_name} Template, generated with https://github.com/Eijebong/Archipelago-fuzzer/tree/{__version__}",
         "game": game_name,
         "requires": {
-            "version": __version__,
+            "version": __ap_version__,
         },
         game_name: game_options,
     }
