@@ -455,6 +455,7 @@ def gen_callback(yamls_dir, apworld_name, i, args, outcome):
 
 
 def error(yamls_dir, apworld_name, i, args, raised):
+    dump_generation_output(GenOutcome.Failure, apworld_name, i, yamls_dir, StringIO("\n".join(traceback.format_exception(raised))))
     return gen_callback(yamls_dir, apworld_name, i, args, GenOutcome.Failure)
 
 
