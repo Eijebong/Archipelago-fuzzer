@@ -127,6 +127,18 @@ def patched_init_logging(
 Utils.init_logging = patched_init_logging
 
 
+class FuzzerException(Exception):
+    def __init__(self, desc, out_buf):
+        if isinstance(out_buf, str):
+            self.out_buf = out_buf
+        else:
+            self.out_buf = out_buf.getvalue()
+        self.desc = desc
+        super().__init__(desc)
+
+    def __reduce__(self):
+        return (self.__class__, (self.desc, self.out_buf))
+
 def exception_in_causes(e, ty):
     if isinstance(e, ty):
         return True
@@ -320,60 +332,63 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
     raised = None
     mw = None
 
-    with redirect_stdout(out_buf), redirect_stderr(out_buf):
-        try:
-            # If we have hooks defined in args but they're not registered yet, register them
-            if args.hook and not MP_HOOKS:
-                for hook_class_path in args.hook:
-                    hook = find_hook(hook_class_path)
-                    hook.setup_worker(args)
-                    MP_HOOKS.append(hook)
+    try:
+        with redirect_stdout(out_buf), redirect_stderr(out_buf):
+            try:
+                # If we have hooks defined in args but they're not registered yet, register them
+                if args.hook and not MP_HOOKS:
+                    for hook_class_path in args.hook:
+                        hook = find_hook(hook_class_path)
+                        hook.setup_worker(args)
+                        MP_HOOKS.append(hook)
 
-            mw = call_generate(yaml_path.name, args)
-        except Exception as e:
-            raised = e
-        finally:
-            if timer is not None:
-                timer.cancel()
-                timer.join()
-            root_logger = logging.getLogger()
-            handlers = root_logger.handlers[:]
-            for handler in handlers:
-                root_logger.removeHandler(handler)
-                handler.close()
+                mw = call_generate(yaml_path.name, args)
+            except Exception as e:
+                raised = e
+            finally:
+                if timer is not None:
+                    timer.cancel()
+                    timer.join()
+                root_logger = logging.getLogger()
+                handlers = root_logger.handlers[:]
+                for handler in handlers:
+                    root_logger.removeHandler(handler)
+                    handler.close()
 
-            for hook in MP_HOOKS:
-                hook.after_generate(mw)
+                for hook in MP_HOOKS:
+                    hook.after_generate(mw)
 
-            outcome = GenOutcome.Success
-            if raised:
-                is_timeout = isinstance(raised, TimeoutError)
-                is_option_error = exception_in_causes(raised, OptionError)
+                outcome = GenOutcome.Success
+                if raised:
+                    is_timeout = isinstance(raised, TimeoutError)
+                    is_option_error = exception_in_causes(raised, OptionError)
 
-                if is_timeout:
-                    outcome = GenOutcome.Timeout
-                elif is_option_error:
-                    outcome = GenOutcome.OptionError
+                    if is_timeout:
+                        outcome = GenOutcome.Timeout
+                    elif is_option_error:
+                        outcome = GenOutcome.OptionError
+                    else:
+                        outcome = GenOutcome.Failure
+
+                for hook in MP_HOOKS:
+                    outcome, raised = hook.reclassify_outcome(outcome, raised)
+
+                if outcome == GenOutcome.Success:
+                    return outcome
+
+                if outcome == GenOutcome.OptionError and not args.dump_ignored:
+                    return outcome
+
+                if outcome == GenOutcome.Timeout:
+                    extra = f"[...] Generation killed here after {args.timeout}s"
                 else:
-                    outcome = GenOutcome.Failure
+                    extra = "".join(traceback.format_exception(raised))
 
-            for hook in MP_HOOKS:
-                outcome, raised = hook.reclassify_outcome(outcome, raised)
+                dump_generation_output(outcome, apworld_name, i, yaml_path, out_buf, extra)
 
-            if outcome == GenOutcome.Success:
-                return outcome
-
-            if outcome == GenOutcome.OptionError and not args.dump_ignored:
-                return outcome
-
-            if outcome == GenOutcome.Timeout:
-                extra = f"[...] Generation killed here after {args.timeout}s"
-            else:
-                extra = "".join(traceback.format_exception(raised))
-
-            dump_generation_output(outcome, apworld_name, i, yaml_path, out_buf, extra)
-
-            return outcome, raised
+                return outcome, raised
+    except Exception as e:
+        raise FuzzerException("Fuzzer error", out_buf) from e
 
 
 def dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra=None):
@@ -455,7 +470,12 @@ def gen_callback(yamls_dir, apworld_name, i, args, outcome):
 
 
 def error(yamls_dir, apworld_name, i, args, raised):
-    dump_generation_output(GenOutcome.Failure, apworld_name, i, yamls_dir, StringIO("\n".join(traceback.format_exception(raised))))
+    msg = StringIO()
+    if isinstance(raised, FuzzerException):
+        msg.write(raised.out_buf)
+    msg.write("\n".join(traceback.format_exception(raised)))
+
+    dump_generation_output(GenOutcome.Failure, apworld_name, i, yamls_dir, msg)
     return gen_callback(yamls_dir, apworld_name, i, args, GenOutcome.Failure)
 
 
