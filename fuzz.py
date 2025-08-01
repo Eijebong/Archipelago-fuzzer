@@ -346,12 +346,16 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
             except Exception as e:
                 raised = e
             finally:
-                for hook in MP_HOOKS:
-                    hook.after_generate(mw, output_path)
-
-                if timer is not None:
-                    timer.cancel()
-                    timer.join()
+                try:
+                    for hook in MP_HOOKS:
+                        hook.after_generate(mw, output_path)
+                finally:
+                    # Make sure to always stop the timeout timer, whatever happens
+                    # If we don't, the timer could fire while we're stopping AP or
+                    # dumping YAMLs, and that would be bad.
+                    if timer is not None:
+                        timer.cancel()
+                        timer.join()
                 root_logger = logging.getLogger()
                 handlers = root_logger.handlers[:]
                 for handler in handlers:
