@@ -314,7 +314,7 @@ def call_generate(yaml_path, args, output_path):
     return ERmain(erargs, seed)
 
 
-def gen_wrapper(yaml_path, apworld_name, i, args, queue):
+def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
     global MP_HOOKS
 
     out_buf = StringIO()
@@ -333,7 +333,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue):
     mw = None
 
     try:
-        with redirect_stdout(out_buf), redirect_stderr(out_buf), tempfile.TemporaryDirectory(prefix="apfuzz") as output_path:
+        with redirect_stdout(out_buf), redirect_stderr(out_buf), tempfile.TemporaryDirectory(prefix="apfuzz", dir=tmp) as output_path:
             try:
                 # If we have hooks defined in args but they're not registered yet, register them
                 if args.hook and not MP_HOOKS:
@@ -467,6 +467,12 @@ def gen_callback(yamls_dir, apworld_name, i, args, outcome):
             print(f"{checks_done} / {args.runs} done. {FAILURE} failures, {TIMEOUTS} timeouts, {OPTION_ERRORS} ignored.")
 
     sys.stdout.flush()
+    try:
+        # Technically not useful but this will prevent me from removing things I don't want when I inevitably mix up the args somewhere...
+        if 'apfuzz' in yamls_dir.name:
+            shutil.rmtree(yamls_dir.name)
+    except:
+        pass
 
 
 def error(yamls_dir, apworld_name, i, args, raised):
@@ -559,7 +565,7 @@ def write_report(report):
 if __name__ == "__main__":
     MAIN_HOOKS = []
 
-    def main(p, args):
+    def main(p, args, tmp):
         global SUBMITTED
 
         apworld_name = args.game
@@ -666,8 +672,7 @@ if __name__ == "__main__":
 
             SUBMITTED += 1
 
-            # We don't care about the actual gen output, just trash it immediately after gen
-            yamls_dir = tempfile.TemporaryDirectory(prefix="apfuzz")
+            yamls_dir = tempfile.TemporaryDirectory(prefix="apfuzz", dir=tmp, delete=False)
             for nb, yaml_content in enumerate(random_yamls):
                 yaml_path = os.path.join(yamls_dir.name, f"{i}-{nb}.yaml")
                 open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
@@ -678,8 +683,8 @@ if __name__ == "__main__":
 
             last_job = p.apply_async(
                 gen_wrapper,
-                args=(yamls_dir, actual_apworld, i, args, queue),
-                callback=functools.partial(gen_callback, yamls_dir, actual_apworld, i, args), # The yamls_dir arg isn't used but we abuse functools.partial to keep the object and thus the tempdir alive
+                args=(yamls_dir, actual_apworld, i, args, queue, tmp),
+                callback=functools.partial(gen_callback, yamls_dir, actual_apworld, i, args),
                 error_callback=functools.partial(error, yamls_dir, actual_apworld, i, args),
             )
 
@@ -718,9 +723,10 @@ if __name__ == "__main__":
         # forking for every job also has the advantage of being sure that the process is "clean". Although I don't know if that actually matters
         start_method = "fork" if can_fork else "spawn"
         multiprocessing.set_start_method(start_method)
+        tmp = tempfile.TemporaryDirectory(prefix="apfuzz")
         with Pool(processes=args.jobs, maxtasksperchild=None) as p:
             START = time.time()
-            main(p, args)
+            main(p, args, tmp.name)
     except KeyboardInterrupt:
         pass
     except Exception as e:
@@ -732,5 +738,6 @@ if __name__ == "__main__":
             hook.finalize()
 
         write_report(REPORT)
+        tmp.cleanup()
         sys.exit((FAILURE + TIMEOUTS) != 0)
 
