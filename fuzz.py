@@ -436,57 +436,67 @@ REPORT = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: [])))
 
 
 def gen_callback(yamls_dir, apworld_name, i, args, outcome):
-    if isinstance(outcome, tuple):
-        outcome, exc = outcome
-    else:
-        exc = None
-
-    global SUCCESS, FAILURE, SUBMITTED, OPTION_ERRORS, TIMEOUTS
-    SUBMITTED -= 1
-
-    if outcome == GenOutcome.Success:
-        SUCCESS += 1
-        if IS_TTY:
-            print(".", end="")
-    elif outcome == GenOutcome.Failure:
-        REPORT[apworld_name][type(exc)][str(exc)].append(i)
-        FAILURE += 1
-        if IS_TTY:
-            print("F", end="")
-    elif outcome == GenOutcome.Timeout:
-        REPORT[apworld_name][TimeoutError][""].append(i)
-        TIMEOUTS += 1
-        if IS_TTY:
-            print("T", end="")
-    elif outcome == GenOutcome.OptionError:
-        OPTION_ERRORS += 1
-        if IS_TTY:
-            print("I", end="")
-
-    # If we're not on a TTY, print progress every once in a while
-    if not IS_TTY:
-        checks_done = SUCCESS + FAILURE + TIMEOUTS + OPTION_ERRORS
-        step = args.runs // 50
-        if step == 0 or (checks_done % step) == 0:
-            print(f"{checks_done} / {args.runs} done. {FAILURE} failures, {TIMEOUTS} timeouts, {OPTION_ERRORS} ignored.")
-
-    sys.stdout.flush()
     try:
-        # Technically not useful but this will prevent me from removing things I don't want when I inevitably mix up the args somewhere...
-        if 'apfuzz' in yamls_dir.name:
-            shutil.rmtree(yamls_dir.name)
-    except:
-        pass
+        if isinstance(outcome, tuple):
+            outcome, exc = outcome
+        else:
+            exc = None
+
+        global SUCCESS, FAILURE, SUBMITTED, OPTION_ERRORS, TIMEOUTS
+        SUBMITTED -= 1
+
+        if outcome == GenOutcome.Success:
+            SUCCESS += 1
+            if IS_TTY:
+                print(".", end="")
+        elif outcome == GenOutcome.Failure:
+            REPORT[apworld_name][type(exc)][str(exc)].append(i)
+            FAILURE += 1
+            if IS_TTY:
+                print("F", end="")
+        elif outcome == GenOutcome.Timeout:
+            REPORT[apworld_name][TimeoutError][""].append(i)
+            TIMEOUTS += 1
+            if IS_TTY:
+                print("T", end="")
+        elif outcome == GenOutcome.OptionError:
+            OPTION_ERRORS += 1
+            if IS_TTY:
+                print("I", end="")
+
+        # If we're not on a TTY, print progress every once in a while
+        if not IS_TTY:
+            checks_done = SUCCESS + FAILURE + TIMEOUTS + OPTION_ERRORS
+            step = args.runs // 50
+            if step == 0 or (checks_done % step) == 0:
+                print(f"{checks_done} / {args.runs} done. {FAILURE} failures, {TIMEOUTS} timeouts, {OPTION_ERRORS} ignored.")
+
+        sys.stdout.flush()
+        try:
+            # Technically not useful but this will prevent me from removing things I don't want when I inevitably mix up the args somewhere...
+            if 'apfuzz' in yamls_dir.name:
+                shutil.rmtree(yamls_dir.name)
+        except: # noqa: E722
+            pass
+    except Exception as e:
+        print("Error while handling fuzzing result:")
+        traceback.print_exception(e)
+        print("This is most likely a fuzzer bug and should be reported")
 
 
 def error(yamls_dir, apworld_name, i, args, raised):
-    msg = StringIO()
-    if isinstance(raised, FuzzerException):
-        msg.write(raised.out_buf)
-    msg.write("\n".join(traceback.format_exception(raised)))
+    try:
+        msg = StringIO()
+        if isinstance(raised, FuzzerException):
+            msg.write(raised.out_buf)
+        msg.write("\n".join(traceback.format_exception(raised)))
 
-    dump_generation_output(GenOutcome.Failure, apworld_name, i, yamls_dir, msg)
-    return gen_callback(yamls_dir, apworld_name, i, args, GenOutcome.Failure)
+        dump_generation_output(GenOutcome.Failure, apworld_name, i, yamls_dir, msg)
+        return gen_callback(yamls_dir, apworld_name, i, args, GenOutcome.Failure)
+    except Exception as e:
+        print("Error while handling fuzzing result:")
+        traceback.print_exception(e)
+        print("This is most likely a fuzzer bug and should be reported")
 
 
 def print_status():
