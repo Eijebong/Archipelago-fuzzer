@@ -1,8 +1,15 @@
 from fuzz import BaseHook
 from worlds import AutoWorldRegister, WorldSource
+import worlds
 import os
 import tempfile
 import shutil
+
+def refresh_netdata_package():
+    for world_name, world in AutoWorldRegister.world_types.items():
+        if world_name not in worlds.network_data_package["games"]:
+            worlds.network_data_package["games"][world_name] =  world.get_data_package_data()
+
 
 class Hook(BaseHook):
     def setup_main(self, args):
@@ -23,6 +30,9 @@ Empty: {}
                 shutil.copy('/ap/empty.apworld', '/ap/archipelago/worlds/empty.apworld')
                 WorldSource('/ap/archipelago/worlds/empty.apworld', is_zip=True, relative=False).load()
 
+
         if 'Empty' not in AutoWorldRegister.world_types:
             raise RuntimeError("empty needs to be loaded")
+
+        refresh_netdata_package()
 
