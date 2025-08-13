@@ -342,7 +342,7 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
                         hook.setup_worker(args)
                         MP_HOOKS.append(hook)
 
-                mw = call_generate(yaml_path.name, args, output_path)
+                mw = call_generate(yaml_path, args, output_path)
             except Exception as e:
                 raised = e
             finally:
@@ -409,8 +409,8 @@ def dump_generation_output(outcome, apworld_name, i, yamls_dir, out_buf, extra=N
     error_output_dir = os.path.join(OUT_DIR, error_ty, apworld_name, str(i))
     os.makedirs(error_output_dir)
 
-    for yaml_file in os.listdir(yamls_dir.name):
-        shutil.copy(os.path.join(yamls_dir.name, yaml_file), error_output_dir)
+    for yaml_file in os.listdir(yamls_dir):
+        shutil.copy(os.path.join(yamls_dir, yaml_file), error_output_dir)
 
     error_log_path = os.path.join(error_output_dir, f"{i}.log")
     with open(error_log_path, "w", encoding='utf-8') as fd:
@@ -474,8 +474,8 @@ def gen_callback(yamls_dir, apworld_name, i, args, outcome):
         sys.stdout.flush()
         try:
             # Technically not useful but this will prevent me from removing things I don't want when I inevitably mix up the args somewhere...
-            if 'apfuzz' in yamls_dir.name:
-                shutil.rmtree(yamls_dir.name)
+            if 'apfuzz' in yamls_dir:
+                shutil.rmtree(yamls_dir)
         except: # noqa: E722
             pass
     except Exception as e:
@@ -686,13 +686,13 @@ if __name__ == "__main__":
 
             SUBMITTED += 1
 
-            yamls_dir = tempfile.TemporaryDirectory(prefix="apfuzz", dir=tmp, delete=False)
+            yamls_dir = tempfile.mkdtemp(prefix="apfuzz", dir=tmp)
             for nb, yaml_content in enumerate(random_yamls):
-                yaml_path = os.path.join(yamls_dir.name, f"{i}-{nb}.yaml")
+                yaml_path = os.path.join(yamls_dir, f"{i}-{nb}.yaml")
                 open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
             for nb, yaml_content in enumerate(static_yamls):
-                yaml_path = os.path.join(yamls_dir.name, f"static-{i}-{nb}.yaml")
+                yaml_path = os.path.join(yamls_dir, f"static-{i}-{nb}.yaml")
                 open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
             last_job = p.apply_async(
