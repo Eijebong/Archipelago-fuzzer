@@ -28,6 +28,8 @@ Empty: {}
             # This is correct for the ap-yaml-checker container
             if os.path.isfile('/ap/empty.apworld'):
                 shutil.copy('/ap/empty.apworld', '/ap/archipelago/worlds/empty.apworld')
+                with open("/ap/archipelago/worlds/empty.apworld", "rb") as f:
+                    os.fsync(f.fileno())
                 WorldSource('/ap/archipelago/worlds/empty.apworld', is_zip=True, relative=False).load()
 
 
