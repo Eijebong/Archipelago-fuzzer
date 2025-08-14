@@ -731,6 +731,7 @@ if __name__ == "__main__":
     # so that a first run on a new installation doesn't throw out failures until
     # the host.yaml from the first gen is written
     get_settings()
+    crashed = False
     try:
         can_fork = hasattr(os, "fork")
         # fork here is way faster because it doesn't have to reload all worlds, but it's only available on some platforms
@@ -744,14 +745,18 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         pass
     except Exception as e:
+        crashed = True
         traceback.print_exc()
     finally:
-        print_status()
-
         for hook in MAIN_HOOKS:
             hook.finalize()
 
-        write_report(REPORT)
         tmp.cleanup()
-        sys.exit((FAILURE + TIMEOUTS) != 0)
+
+        if not crashed:
+            print_status()
+            write_report(REPORT)
+            sys.exit((FAILURE + TIMEOUTS) != 0)
+
+        sys.exit(2)
 
