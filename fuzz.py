@@ -29,6 +29,7 @@ from Options import (
     OptionDict,
     OptionError,
 )
+from BaseClasses import PlandoOptions
 from Utils import __version__ as __ap_version__
 import Utils
 import settings
@@ -299,7 +300,7 @@ def call_generate(yaml_path, args, output_path):
             "meta_file_path": "meta-doesnt-exist.yaml",
             "log_level": "info",
             "yaml_output": 1,
-            "plando": [],
+            "plando": PlandoOptions.items | PlandoOptions.connections | PlandoOptions.texts | PlandoOptions.bosses,
             "skip_prog_balancing": False,
             "skip_output": args.skip_output,
             "csv_output": False,
