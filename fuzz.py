@@ -275,9 +275,17 @@ def get_random_value(name, option):
         return option("random").value
 
     if issubclass(option, FreeText):
-        return "".join(
-            random.choice(string.ascii_letters) for i in range(random.randint(0, 255))
+        special_symbols = '&<>"\'\\/@#$%^*()[]{}|;:,.'
+        whitespace = ' \t\n'
+        multibyte_utf8 = (
+            'ÀÁÂÃÄÅÆÇÈÉÊËΒΓΔбвг'
+            '中文日本語한글'
+            '🎮🎯🎲🔥💀𝕳𝖊𝖑𝖑𝖔'
         )
+
+        all_chars = string.ascii_letters + string.digits + special_symbols + whitespace + multibyte_utf8
+
+        return "".join(random.choice(all_chars) for _ in range(random.randint(0, 255)))
 
     return option.default
 
