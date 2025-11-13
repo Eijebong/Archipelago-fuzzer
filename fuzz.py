@@ -566,20 +566,30 @@ class BaseHook:
 
 
 def write_report(report):
-    computed_report = {}
+    errors = {}
 
     for game_name, game_report in report.items():
-        computed_report[game_name] = defaultdict(lambda: [])
+        errors[game_name] = defaultdict(lambda: [])
 
         for exc_type, exc_report in game_report.items():
             for exc_str, yamls in exc_report.items():
                 if exc_type == FillError:
-                    computed_report[game_name]["FillError"].extend(yamls)
+                    errors[game_name]["FillError"].extend(yamls)
                 else:
                     if exc_str:
-                        computed_report[game_name][exc_str].extend(yamls)
+                        errors[game_name][exc_str].extend(yamls)
                     else:
-                        computed_report[game_name][str(exc_type)].extend(yamls)
+                        errors[game_name][str(exc_type)].extend(yamls)
+
+    stats = {
+        "total": SUCCESS + FAILURE + TIMEOUTS + OPTION_ERRORS,
+        "success": SUCCESS,
+        "failure": FAILURE,
+        "timeout": TIMEOUTS,
+        "ignored": OPTION_ERRORS,
+    }
+
+    computed_report = {"stats": stats, "errors": errors}
 
     with open(os.path.join(OUT_DIR, "report.json"), "w", encoding='utf-8') as fd:
         fd.write(json.dumps(computed_report))
