@@ -515,7 +515,7 @@ def print_status():
     print("Timeouts:", TIMEOUTS)
     print("Ignored:", OPTION_ERRORS)
     print()
-    print("Time taken:{:.2f}s".format(time.time() - START))
+    print("Time taken:{:.2f}s".format(time.perf_counter() - START))
 
 
 def find_hook(hook_path):
@@ -759,7 +759,7 @@ if __name__ == "__main__":
         multiprocessing.set_start_method(start_method)
         tmp = tempfile.TemporaryDirectory(prefix="apfuzz")
         with Pool(processes=args.jobs, maxtasksperchild=None) as p:
-            START = time.time()
+            START = time.perf_counter()
             main(p, args, tmp.name)
     except KeyboardInterrupt:
         pass
