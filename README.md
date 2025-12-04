@@ -89,7 +89,7 @@ class Hook(BaseHook):
         As such, this function must do very minimal work and not make
         assumptions as whether it's running in worker or in the main process.
         """
-        return GenOutcome.Success
+        return GenOutcome.Success, exception
 
     def before_generate(self, args):
         """
