@@ -48,6 +48,35 @@ Note that unlike an archipelago meta file, this will override the values in the
 generated YAML, there's no implicit application of options at generation time
 so you don't need to provide the meta file to report bugs.
 
+### Triggers
+
+You can also define [triggers](https://archipelago.gg/tutorial/Archipelago/triggers/en)
+in meta files. They can be per-game or global.
+
+```yaml
+triggers:
+  - option_category: Pokemon FireRed and LeafGreen
+    option_name: some_option
+    option_result: trigger_value
+    options:
+      Pokemon FireRed and LeafGreen:
+        target_option: forced_value
+
+Pokemon FireRed and LeafGreen:
+  triggers:
+    - option_name: source_option
+      option_result: trigger_value
+      options:
+        Pokemon FireRed and LeafGreen:
+          target_option: forced_value
+```
+
+**Caveat:** Archipelago triggers only fire when the value matches exactly what
+is in the YAML. This can cause some confusion when the option keys don't match
+the value you would expect. For example toggles need to be matched to
+`'true'`/`'false'` instead of `true`/`false` as archipelago doesn't interpret
+the trigger values before comparing them to what got rolled.
+
 ## Hooks
 
 To repurpose the fuzzer for some specific bug testing, it can be useful to

@@ -190,13 +190,16 @@ def generate_random_yaml(world_name, meta):
     if world is None:
         raise Exception(f"Failed to resolve apworld from apworld name: {world_name}")
 
+    global_meta = meta.get(None, {})
+    game_meta = meta.get(game_name, {})
+
     game_options = {}
     option_groups = get_option_groups(world)
     for group, options in option_groups.items():
         for option_name, option_value in options.items():
-            override = meta.get(None, {}).get(option_name)
+            override = global_meta.get(option_name)
             if not override:
-                override = meta.get(game_name, {}).get(option_name)
+                override = game_meta.get(option_name)
 
             if override is not None:
                 game_options[option_name] = override
@@ -206,6 +209,9 @@ def generate_random_yaml(world_name, meta):
                 get_random_value(option_name, option_value)
             )
 
+    if "triggers" in game_meta:
+        game_options["triggers"] = game_meta["triggers"]
+
     yaml_content = {
         "description": f"{game_name} Template, generated with https://github.com/Eijebong/Archipelago-fuzzer/tree/{__version__}",
         "game": game_name,
@@ -214,6 +220,9 @@ def generate_random_yaml(world_name, meta):
         },
         game_name: game_options,
     }
+
+    if "triggers" in meta:
+        yaml_content["triggers"] = meta["triggers"]
 
     res = yaml.safe_dump(yaml_content, sort_keys=False)
 
