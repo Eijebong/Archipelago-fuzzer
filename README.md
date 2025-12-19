@@ -160,3 +160,20 @@ python -O fuzz.py -r 1000 -n 1 -g pokemon_crystal -j24 --hook hooks.profile:Hook
 ```
 
 The output (`fuzz_output/full.prof`) can be read with a tool such as `qcachegrind`.
+
+### Determinism hook
+
+You can check for generation determinism with the provided `determinism` hook.
+
+> [!IMPORTANT]
+> Because the hook creates a subworker to get a second generation, it is
+> recommended to run this with half of the usual number of jobs and double the
+> timeout.
+
+Example
+
+```
+python -O fuzz.py -r 1000 -n 1 -g pokemon_crystal -j12 --hook hooks.determinism:Hook
+```
+
+Any failure that isn't a determinism issue will be considered as ignored.
