@@ -344,7 +344,6 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
             queue.put_nowait((myself, apworld_name, i, yaml_path, out_buf))
             queue.join()
         timer = threading.Timer(args.timeout, stop)
-        timer.start()
 
 
     raised = None
@@ -360,6 +359,9 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
                         hook.setup_worker(args)
                         MP_HOOKS.append(hook)
 
+                if timer:
+                    timer.start()
+
                 mw = call_generate(yaml_path, args, output_path)
             except Exception as e:
                 raised = e
@@ -373,7 +375,8 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
                     # dumping YAMLs, and that would be bad.
                     if timer is not None:
                         timer.cancel()
-                        timer.join()
+                        if timer.ident is not None:
+                            timer.join()
                 root_logger = logging.getLogger()
                 handlers = root_logger.handlers[:]
                 for handler in handlers:
