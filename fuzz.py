@@ -48,6 +48,7 @@ from functools import wraps
 from io import StringIO
 from multiprocessing import Pool
 
+import gc
 import importlib
 import json
 import functools
@@ -69,6 +70,16 @@ settings.no_gui = True
 settings.skip_autosave = True
 MP_HOOKS = []
 MANAGER = None
+
+# This whole thing is to prevent infinite growth of ABC caches
+# See https://github.com/python/cpython/issues/92810
+from abc import ABCMeta
+ABC_CLASSES = [obj for obj in gc.get_objects() if isinstance(obj, ABCMeta)]
+
+
+def clear_abc_caches():
+    for cls in ABC_CLASSES:
+        cls._abc_caches_clear()
 
 
 # We patch this because AP can't keep its hands to itself and has to start a thread to clean stuff up.
@@ -378,6 +389,9 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
                         timer.cancel()
                         if timer.ident is not None:
                             timer.join()
+
+                    clear_abc_caches()
+
                 root_logger = logging.getLogger()
                 handlers = root_logger.handlers[:]
                 for handler in handlers:
@@ -716,6 +730,9 @@ if __name__ == "__main__":
             random_yamls = [
                 generate_random_yaml(actual_apworld, meta) for _ in range(yamls_this_run)
             ]
+
+            if i % 100 == 0:
+                clear_abc_caches()
 
             SUBMITTED += 1
 
