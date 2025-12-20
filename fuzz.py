@@ -68,6 +68,7 @@ OUT_DIR = f"fuzz_output"
 settings.no_gui = True
 settings.skip_autosave = True
 MP_HOOKS = []
+MANAGER = None
 
 
 # We patch this because AP can't keep its hands to itself and has to start a thread to clean stuff up.
@@ -669,8 +670,9 @@ if __name__ == "__main__":
                     static_yamls.append(fd.read())
 
 
-        manager = multiprocessing.Manager()
-        queue = manager.Queue(1000)
+        global MANAGER
+        MANAGER = multiprocessing.Manager()
+        queue = MANAGER.Queue(1000)
         def handle_timeouts():
             while True:
                 try:
@@ -784,10 +786,13 @@ if __name__ == "__main__":
 
         tmp.cleanup()
 
+        if MANAGER is not None:
+            MANAGER._process.kill()
+
         if not crashed:
             print_status()
             write_report(REPORT)
-            sys.exit((FAILURE + TIMEOUTS) != 0)
+            os._exit((FAILURE + TIMEOUTS) != 0)
 
-        sys.exit(2)
+        os._exit(2)
 
