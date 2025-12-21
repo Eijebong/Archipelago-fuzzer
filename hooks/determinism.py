@@ -307,6 +307,10 @@ class Hook(BaseHook):
         if msg != "ready":
             raise RuntimeError(f"Determinism worker sent unexpected message: {msg}")
 
+        # Close stderr to avoid deadlocks. The subprocess logs can fill the pipe buffer
+        # and block if we don't drain it, but we only read stderr for startup errors
+        self._proc.stderr.close()
+
     def before_generate(self, args):
         self._args = copy.copy(args)
         self._determinism_error = None
