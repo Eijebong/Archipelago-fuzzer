@@ -24,6 +24,7 @@ from Options import (
     OptionSet,
     FreeText,
     PlandoConnections,
+    OptionCounter,
     OptionList,
     PlandoTexts,
     OptionDict,
@@ -260,6 +261,19 @@ def get_random_value(name, option):
         # Just return Link for now.
         return "Link"
 
+    if issubclass(option, OptionCounter):
+        # ItemDict subclasses like StartInventory might not have valid_keys and
+        # instead rely on verify_item_name for runtime validation against world.item_names
+        if not option.valid_keys:
+            return option.default
+        selected_keys = random.sample(
+            list(option.valid_keys),
+            k=random.randint(0, len(option.valid_keys))
+        )
+        min_val = option.min if option.min is not None else 0
+        max_val = option.max if option.max is not None else 1000
+        return {key: random.randint(min_val, max_val) for key in selected_keys}
+
     if issubclass(option, OptionDict):
         # This is for example factorio's start_items and worldgen settings. I don't think it's worth randomizing those as I'm not expecting the generation outcome to change from them.
         # Plus I have no idea how to randomize them in the first place :)
@@ -275,11 +289,10 @@ def get_random_value(name, option):
     if issubclass(option, Range):
         return random.randint(option.range_start, option.range_end)
 
-    if issubclass(option, (ItemSet, ItemDict, LocationSet)):
+    if issubclass(option, (ItemSet, LocationSet)):
         # I don't know what to do here so just return the default value instead of a random one.
-        # This affects options like start inventory, local items, non local
-        # items so it's not the end of the world if they don't get randomized
-        # but we might want to look into that later on
+        # This affects options like local items, non local items so it's not the end of the world
+        # if they don't get randomized but we might want to look into that later on
         return option.default
 
     if issubclass(option, OptionSet):
