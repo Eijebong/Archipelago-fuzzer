@@ -344,5 +344,8 @@ class Hook(BaseHook):
     def reclassify_outcome(self, outcome, raised):
         if self.failed and outcome == GenOutcome.Success:
             return GenOutcome.Failure, self.raised
+        if outcome != GenOutcome.Success and not isinstance(raised, VariableCaptureError):
+            # Whatever error/timeout occurred is not what is being tested, so ignore it.
+            return GenOutcome.OptionError, raised
         else:
             return super().reclassify_outcome(outcome, raised)
