@@ -7,9 +7,9 @@ This Fuzzer Hook detects lambda (and regular function) variable capture issues b
 Location.access_rule and Entrance.access_rule are monkey-patched into `property`-like descriptors to intercept set
  rules.
 worlds.generic.Rules.add_rule is monkey-patched to intercept added rules.
-worlds.generic.Rules.set_rule had to be monkey-patched by replacing its `.__code__` due to the issue that importing
+worlds.generic.Rules.add_rule had to be monkey-patched by replacing its `.__code__` due to the issue that importing
  worlds.generic.Rules causes all other worlds to import before the worlds.generic.Rules import resolves, and many of
- those worlds import worlds.generic.Rules.set_rule directly.
+ those worlds import worlds.generic.Rules.add_rule directly.
 
 There are a couple of cases that this Hook cannot cover.
 - If the rules are defined in a separate loop (and a capture issue occurs there), and then the rules are set onto
