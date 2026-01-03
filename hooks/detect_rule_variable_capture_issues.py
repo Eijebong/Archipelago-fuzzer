@@ -23,6 +23,7 @@ There are a couple of cases that this Hook cannot cover.
 
 
 import logging
+import sys
 import traceback
 from typing import Any
 from types import CodeType, CellType
@@ -178,6 +179,10 @@ class Hook(BaseHook):
     def setup_worker(self, args):
         super().setup_worker(args)
 
+        # The patched add_rule needs access to some module-level globals from this Hook module. To account for this file
+        # being named differently, it is put into sys.modules under a fixed name.
+        sys.modules["_fuzzer_add_rule_intercept"] = sys.modules[__name__]
+
         # Patch ap methods/classes to detect rules that have been set.
         self.patch_access_rule_as_property()
         self.patch_add_rule()
@@ -284,7 +289,7 @@ class Hook(BaseHook):
                 # import is required, otherwise the add_rule's replaced code cannot access `Hook` or
                 # `FUZZER_ACCESS_RULE_ATTR`.
                 # noinspection PyUnresolvedReferences
-                from fuzz_hook_lambda_capture import Hook, FUZZER_ACCESS_RULE_ATTR
+                from _fuzzer_add_rule_intercept import Hook, FUZZER_ACCESS_RULE_ATTR
 
                 # Avoid hitting the patched .access_rule property and recording the combined rule lambda, by accessing
                 # .fuzzer_access_rule directly.
