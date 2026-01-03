@@ -173,8 +173,10 @@ class FuzzerAccessRuleRecord:
 
 
 class Hook(BaseHook):
-    failed: bool
-    raised: VariableCaptureError | None
+    # Defaults are needed to AttributeErrors in `reclassify_outcome()` when handling a timeout, where the main process
+    # won't have run `before_generate()`.
+    failed: bool = False
+    raised: VariableCaptureError | None = None
 
     def setup_worker(self, args):
         super().setup_worker(args)
