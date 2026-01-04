@@ -263,8 +263,8 @@ class Hook(BaseHook):
                     # that uses it.
                     # Re-check here to try to cause an exception at the point at which a rule is added, providing a
                     # stacktrace that can be followed.
-                    for record in rule_records:
-                        record.recheck_closure_variables()
+                    for other_record in rule_records:
+                        other_record.recheck_closure_variables()
                     rule_records.append(record)
                 if DO_EXTRA_LOGGING:
                     logging.info("Adding rule record to %s with initial closure variables %s",
