@@ -1,5 +1,6 @@
 from fuzz import GenOutcome, BaseHook
-from worlds import AutoWorldRegister, WorldSource
+from worlds import AutoWorldRegister
+from hooks.utils import load_apworld
 import os
 import tempfile
 import shutil
@@ -21,7 +22,7 @@ Kingdom Hearts: {}
             # This is correct for the ap-yaml-checker container
             if os.path.isfile('/ap/supported_worlds/kh1-0.6.1.apworld'):
                 shutil.copy('/ap/supported_worlds/kh1-0.6.1.apworld', '/ap/archipelago/worlds/kh1.apworld')
-                WorldSource('/ap/archipelago/worlds/kh1.apworld', is_zip=True, relative=False).load()
+                load_apworld('/ap/archipelago/worlds/kh1.apworld')
 
         if 'Kingdom Hearts' not in AutoWorldRegister.world_types:
             raise RuntimeError("kh1 needs to be loaded")

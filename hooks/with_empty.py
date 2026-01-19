@@ -1,5 +1,6 @@
 from fuzz import BaseHook
-from worlds import AutoWorldRegister, WorldSource
+from worlds import AutoWorldRegister
+from hooks.utils import load_apworld
 import worlds
 import os
 import tempfile
@@ -33,8 +34,7 @@ Empty: {}
             # File should already be copied by setup_main, just load it if it's there
             target_path = '/ap/archipelago/worlds/empty.apworld'
             if os.path.exists(target_path):
-                world_source = WorldSource(target_path, is_zip=True, relative=False)
-                if not world_source.load():
+                if not load_apworld(target_path):
                     raise RuntimeError(f"Failed to load empty.apworld from {target_path}. Check logs for details.")
 
         if 'Empty' not in AutoWorldRegister.world_types:

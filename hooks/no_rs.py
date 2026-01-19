@@ -1,5 +1,6 @@
 from fuzz import BaseHook
-from worlds import AutoWorldRegister, WorldSource
+from worlds import AutoWorldRegister
+from hooks.utils import load_apworld
 import os
 import tempfile
 import shutil
@@ -21,7 +22,7 @@ Empty: {}
             # This is correct for the ap-yaml-checker container
             if os.path.isfile('/ap/custom_worlds/empty-0.0.1.apworld'):
                 shutil.copy('/ap/custom_worlds/empty-0.0.1.apworld', '/ap/archipelago/worlds/empty.apworld')
-                WorldSource('/ap/archipelago/worlds/empty.apworld', is_zip=True, relative=False).load()
+                load_apworld('/ap/archipelago/worlds/empty.apworld')
 
         if 'Empty' not in AutoWorldRegister.world_types:
             raise RuntimeError("The `empty` apworld needs to be present. You can get it here: https://github.com/Eijebong/empty-apworld")
