@@ -77,6 +77,75 @@ the value you would expect. For example toggles need to be matched to
 `'true'`/`'false'` instead of `true`/`false` as archipelago doesn't interpret
 the trigger values before comparing them to what got rolled.
 
+### Fuzz Constraints
+
+Constraints prevent the fuzzer from generating invalid option combinations.
+They are defined under the `fuzz_constraints` key in a game's meta file and can
+be used when archipelago triggers are not good enough.
+
+#### `if_selected` + `must_include` / `must_exclude`
+
+When a value is selected, require or forbid other values in the same option.
+
+```yaml
+- option: included_levels
+  if_selected: "Hard Mode"
+  must_include: "Tutorial"
+  must_exclude: "Easy Skip"
+```
+
+#### `if_value` + `then` / `then_exclude` / `then_include`
+
+When an option has a specific value, set other options or modify their contents.
+
+```yaml
+- option: difficulty
+  if_value: expert
+  then:
+    hints: false
+  then_exclude:
+    levels: ["Tutorial", "Practice"]
+  then_include:
+    levels: ["Boss Rush"]
+```
+
+#### `if_any_selected` + `requires_any`
+
+When any trigger value is selected, ensure at least one required value is present.
+
+```yaml
+- option: sanities
+  if_any_selected: ["KeySanity", "CheckpointSanity"]
+  requires_any: ["Act A", "Act B"]
+```
+
+#### `mutually_exclusive`
+
+Values that cannot coexist. One is randomly kept when both are present.
+
+```yaml
+- option: modes
+  mutually_exclusive: ["Hard Mode", "Easy Mode"]
+```
+
+#### `max_count_of`
+
+Cap a numeric option to the size of another option.
+
+```yaml
+- option: num_gates
+  max_count_of: allowed_bosses
+```
+
+#### `ensure_any`
+
+At least one of these values must be present.
+
+```yaml
+- option: included_levels
+  ensure_any: ["World 1", "World 2", "World 3"]
+```
+
 ## Hooks
 
 To repurpose the fuzzer for some specific bug testing, it can be useful to

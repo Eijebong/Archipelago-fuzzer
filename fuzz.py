@@ -174,6 +174,143 @@ def world_from_apworld_name(apworld_name):
 # See https://github.com/yaml/pyyaml/issues/103
 yaml.SafeDumper.ignore_aliases = lambda *args: True
 
+
+def _ensure_list(values):
+    return values if isinstance(values, list) else [values]
+
+
+def apply_constraints(game_options, constraints):
+    # Collect mutually_exclusive info for requires_any filtering
+    mutual_exclusions = [
+        {"option": c.get("option"), "values": c["mutually_exclusive"]}
+        for c in constraints if "mutually_exclusive" in c
+    ]
+
+    other_constraints = [c for c in constraints if "mutually_exclusive" not in c]
+
+    # Run other constraints twice: once for initial processing, once for dependencies
+    for _ in range(2):
+        for constraint in other_constraints:
+            _apply_single_constraint(game_options, constraint, mutual_exclusions)
+
+    # Run mutually_exclusive last to resolve any conflicts created by additions
+    for excl in mutual_exclusions:
+        _apply_single_constraint(game_options, {"option": excl["option"], "mutually_exclusive": excl["values"]}, mutual_exclusions)
+
+    # Run other constraints once more to fix any requirements broken by mutually_exclusive
+    for constraint in other_constraints:
+        _apply_single_constraint(game_options, constraint, mutual_exclusions)
+
+    return game_options
+
+
+def _apply_single_constraint(game_options, constraint, mutual_exclusions):
+    option_name = constraint.get("option")
+    if option_name not in game_options:
+        return
+
+    option_value = game_options[option_name]
+
+    if "if_selected" in constraint:
+        _handle_if_selected(option_value, constraint)
+
+    elif "if_value" in constraint:
+        _handle_if_value(game_options, option_value, constraint)
+
+    elif "mutually_exclusive" in constraint:
+        _handle_mutually_exclusive(option_value, constraint)
+
+    elif "if_any_selected" in constraint and "requires_any" in constraint:
+        _handle_requires_any(option_name, option_value, constraint, mutual_exclusions)
+
+    elif "max_count_of" in constraint:
+        _handle_max_count_of(game_options, option_name, option_value, constraint)
+
+    elif "ensure_any" in constraint:
+        _handle_ensure_any(option_value, constraint)
+
+
+def _handle_if_selected(option_value, constraint):
+    if constraint["if_selected"] not in option_value:
+        return
+
+    for val in _ensure_list(constraint.get("must_include", [])):
+        if val not in option_value:
+            option_value.append(val)
+
+    for val in _ensure_list(constraint.get("must_exclude", [])):
+        if val in option_value:
+            option_value.remove(val)
+
+
+def _handle_if_value(game_options, option_value, constraint):
+    if option_value != constraint["if_value"]:
+        return
+
+    for target_option, target_value in constraint.get("then", {}).items():
+        game_options[target_option] = target_value
+
+    for target_option, excluded in constraint.get("then_exclude", {}).items():
+        target = game_options[target_option]
+        for val in _ensure_list(excluded):
+            if val in target:
+                target.remove(val)
+
+    for target_option, included in constraint.get("then_include", {}).items():
+        target = game_options[target_option]
+        for val in _ensure_list(included):
+            if val not in target:
+                target.append(val)
+
+
+def _handle_mutually_exclusive(option_value, constraint):
+    present = [val for val in constraint["mutually_exclusive"] if val in option_value]
+    if len(present) > 1:
+        keep = random.choice(present)
+        for val in present:
+            if val != keep:
+                option_value.remove(val)
+
+
+def _handle_requires_any(option_name, option_value, constraint, mutual_exclusions):
+    trigger_values = constraint["if_any_selected"]
+    required_values = constraint["requires_any"]
+
+    if not any(val in option_value for val in trigger_values):
+        return
+    if any(val in option_value for val in required_values):
+        return
+
+    # Filter candidates that would conflict with mutually_exclusive constraints
+    candidates = list(required_values)
+    for excl in mutual_exclusions:
+        if excl["option"] == option_name:
+            present_excl = [v for v in excl["values"] if v in option_value]
+            if present_excl:
+                candidates = [c for c in candidates if c not in excl["values"]]
+
+    if not candidates:
+        candidates = list(required_values)
+
+    choice = random.choice(candidates)
+    if choice not in option_value:
+        option_value.append(choice)
+
+
+def _handle_max_count_of(game_options, option_name, option_value, constraint):
+    other_value = game_options[constraint["max_count_of"]]
+    if option_value > len(other_value):
+        game_options[option_name] = len(other_value)
+
+
+def _handle_ensure_any(option_value, constraint):
+    required_values = constraint["ensure_any"]
+    if not any(val in option_value for val in required_values):
+        choice = random.choice(required_values)
+        if choice not in option_value:
+            option_value.append(choice)
+
+
 # Adapted from archipelago'd generate_yaml_templates
 # https://github.com/ArchipelagoMW/Archipelago/blob/f75a1ae1174fb467e5c5bd5568d7de3c806d5b1c/Options.py#L1504
 def generate_random_yaml(world_name, meta):
@@ -224,6 +361,10 @@ def generate_random_yaml(world_name, meta):
 
     if "triggers" in game_meta:
         game_options["triggers"] = game_meta["triggers"]
+
+    fuzz_constraints = game_meta.get("fuzz_constraints", [])
+    if fuzz_constraints:
+        apply_constraints(game_options, fuzz_constraints)
 
     yaml_content = {
         "description": f"{game_name} Template, generated with https://github.com/Eijebong/Archipelago-fuzzer/tree/{__version__}",
