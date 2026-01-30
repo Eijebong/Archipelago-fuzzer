@@ -179,7 +179,7 @@ def _ensure_list(values):
     return values if isinstance(values, list) else [values]
 
 
-def apply_constraints(game_options, constraints):
+def apply_constraints(game_options, constraints, option_defs):
     # Collect mutually_exclusive info for requires_any filtering
     mutual_exclusions = [
         {"option": c.get("option"), "values": c["mutually_exclusive"]}
@@ -191,20 +191,20 @@ def apply_constraints(game_options, constraints):
     # Run other constraints twice: once for initial processing, once for dependencies
     for _ in range(2):
         for constraint in other_constraints:
-            _apply_single_constraint(game_options, constraint, mutual_exclusions)
+            _apply_single_constraint(game_options, constraint, mutual_exclusions, option_defs)
 
     # Run mutually_exclusive last to resolve any conflicts created by additions
     for excl in mutual_exclusions:
-        _apply_single_constraint(game_options, {"option": excl["option"], "mutually_exclusive": excl["values"]}, mutual_exclusions)
+        _apply_single_constraint(game_options, {"option": excl["option"], "mutually_exclusive": excl["values"]}, mutual_exclusions, option_defs)
 
     # Run other constraints once more to fix any requirements broken by mutually_exclusive
     for constraint in other_constraints:
-        _apply_single_constraint(game_options, constraint, mutual_exclusions)
+        _apply_single_constraint(game_options, constraint, mutual_exclusions, option_defs)
 
     return game_options
 
 
-def _apply_single_constraint(game_options, constraint, mutual_exclusions):
+def _apply_single_constraint(game_options, constraint, mutual_exclusions, option_defs):
     option_name = constraint.get("option")
     if option_name not in game_options:
         return
@@ -224,10 +224,10 @@ def _apply_single_constraint(game_options, constraint, mutual_exclusions):
         _handle_requires_any(option_name, option_value, constraint, mutual_exclusions)
 
     elif "max_count_of" in constraint:
-        _handle_max_count_of(game_options, option_name, option_value, constraint)
+        _handle_max_count_of(game_options, option_name, option_value, constraint, option_defs)
 
     elif "max_remaining_from" in constraint:
-        _handle_max_remaining_from(game_options, option_name, option_value, constraint)
+        _handle_max_remaining_from(game_options, option_name, option_value, constraint, option_defs)
 
     elif "ensure_any" in constraint:
         _handle_ensure_any(option_value, constraint)
@@ -300,17 +300,27 @@ def _handle_requires_any(option_name, option_value, constraint, mutual_exclusion
         option_value.append(choice)
 
 
-def _handle_max_count_of(game_options, option_name, option_value, constraint):
+def _handle_max_count_of(game_options, option_name, option_value, constraint, option_defs):
     other_value = game_options[constraint["max_count_of"]]
-    if option_value > len(other_value):
-        game_options[option_name] = len(other_value)
+    cap = len(other_value)
+    if option_value > cap:
+        option_def = option_defs[option_name]
+        if cap < option_def.range_start:
+            game_options[option_name] = cap
+        else:
+            game_options[option_name] = random.randint(option_def.range_start, cap)
 
 
-def _handle_max_remaining_from(game_options, option_name, option_value, constraint):
+def _handle_max_remaining_from(game_options, option_name, option_value, constraint, option_defs):
     other_value = game_options[constraint["max_remaining_from"]]
-    max_options = int(constraint["max_capacity"])
-    if option_value > max_options - len(other_value):
-        game_options[option_name] = max_options - len(other_value)
+    max_capacity = int(constraint["max_capacity"])
+    cap = max_capacity - len(other_value)
+    if option_value > cap:
+        option_def = option_defs[option_name]
+        if cap < option_def.range_start:
+            game_options[option_name] = cap
+        else:
+            game_options[option_name] = random.randint(option_def.range_start, cap)
 
 
 def _handle_ensure_any(option_value, constraint):
@@ -354,8 +364,10 @@ def generate_random_yaml(world_name, meta):
     game_meta = meta.get(game_name, {})
 
     game_options = {}
+    option_defs = {}
     option_groups = get_option_groups(world)
     for group, options in option_groups.items():
+        option_defs.update(options)
         for option_name, option_value in options.items():
             override = global_meta.get(option_name)
             if not override:
@@ -374,7 +386,7 @@ def generate_random_yaml(world_name, meta):
 
     fuzz_constraints = game_meta.get("fuzz_constraints", [])
     if fuzz_constraints:
-        apply_constraints(game_options, fuzz_constraints)
+        apply_constraints(game_options, fuzz_constraints, option_defs)
 
     yaml_content = {
         "description": f"{game_name} Template, generated with https://github.com/Eijebong/Archipelago-fuzzer/tree/{__version__}",
