@@ -226,6 +226,9 @@ def _apply_single_constraint(game_options, constraint, mutual_exclusions):
     elif "max_count_of" in constraint:
         _handle_max_count_of(game_options, option_name, option_value, constraint)
 
+    elif "max_remaining_from" in constraint:
+        _handle_max_remaining_from(game_options, option_name, option_value, constraint)
+
     elif "ensure_any" in constraint:
         _handle_ensure_any(option_value, constraint)
 
@@ -301,6 +304,13 @@ def _handle_max_count_of(game_options, option_name, option_value, constraint):
     other_value = game_options[constraint["max_count_of"]]
     if option_value > len(other_value):
         game_options[option_name] = len(other_value)
+
+
+def _handle_max_remaining_from(game_options, option_name, option_value, constraint):
+    other_value = game_options[constraint["max_remaining_from"]]
+    max_options = int(constraint["max_capacity"])
+    if option_value > max_options - len(other_value):
+        game_options[option_name] = max_options - len(other_value)
 
 
 def _handle_ensure_any(option_value, constraint):
