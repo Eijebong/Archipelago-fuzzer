@@ -137,6 +137,14 @@ Cap a numeric option to the size of another option.
   max_count_of: allowed_bosses
 ```
 
+#### `max_remaining_from`
+Cap a numeric option so that the total of this option and the size of another option does not exceed a fixed maximum capacity.
+```yaml
+- option: num_required_levels
+  max_remaining_from: excluded_levels
+  max_capacity: 20
+```
+
 #### `ensure_any`
 
 At least one of these values must be present.
