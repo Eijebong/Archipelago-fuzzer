@@ -268,7 +268,9 @@ def worker_main(proto):
 
 if __name__ == "__main__":
     proto = sys.stdout.buffer
-    sys.stdout = sys.stderr
+    devnull = open(os.devnull, "w")
+    sys.stdout = devnull
+    sys.stderr = devnull
     sys.path.insert(0, sys.argv[1])
     import Utils
     Utils.init_logging = lambda *args, **kwargs: None
