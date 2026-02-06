@@ -27,11 +27,14 @@ class Hook(BaseHook):
     error_message: str = ""
 
     def reclassify_outcome(self, outcome, raised):
-        if outcome == GenOutcome.Success and not self.passed:
-            assert raised is None
-            return GenOutcome.Failure, HookLogicTestFailure(self.error_message)
+        if outcome == GenOutcome.Success:
+            if not self.passed:
+                assert raised is None
+                return GenOutcome.Failure, HookLogicTestFailure(self.error_message)
+            else:
+                return super().reclassify_outcome(outcome, raised)
         else:
-            return super().reclassify_outcome(outcome, raised)
+            return GenOutcome.OptionError, None
 
     def after_generate(self, mw, output_path):
         super().after_generate(mw, output_path)
