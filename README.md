@@ -138,10 +138,24 @@ Cap a numeric option to the size of another option.
 ```
 
 #### `max_remaining_from`
+
 Cap a numeric option so that the total of this option and the size of another option does not exceed a fixed maximum capacity.
+
 ```yaml
 - option: num_required_levels
   max_remaining_from: excluded_levels
+  max_capacity: 20
+```
+
+#### `sum_cap`
+
+Cap a set of numeric so that their sum does not exceed a fixed maximum capacity.
+
+```yaml
+# sum of base_items, and extra_items cannot exceed 20
+- sum_cap:
+      - base_items
+      - extra_items
   max_capacity: 20
 ```
 

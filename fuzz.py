@@ -205,6 +205,9 @@ def apply_constraints(game_options, constraints, option_defs):
 
 
 def _apply_single_constraint(game_options, constraint, mutual_exclusions, option_defs):
+    if "sum_cap" in constraint:
+        _handle_sum_cap(game_options, constraint, option_defs)
+
     option_name = constraint.get("option")
     if option_name not in game_options:
         return
@@ -298,6 +301,26 @@ def _handle_requires_any(option_name, option_value, constraint, mutual_exclusion
     choice = random.choice(candidates)
     if choice not in option_value:
         option_value.append(choice)
+
+
+def _handle_sum_cap(game_options, constraint, option_defs):
+    all_option_names = [o for o in constraint["sum_cap"] if o in game_options]
+    cap = int(constraint["max_capacity"])
+    total = sum(game_options[o] for o in all_option_names)
+
+    if total <= cap:
+        return
+
+    random.shuffle(all_option_names)
+    for name in all_option_names:
+        if total <= cap:
+            break
+        rest_sum = total - game_options[name]
+        option_def = option_defs[name]
+        max_allowed = cap - rest_sum
+        new_value = max(option_def.range_start, min(game_options[name], max_allowed))
+        game_options[name] = new_value
+        total = rest_sum + new_value
 
 
 def _handle_max_count_of(game_options, option_name, option_value, constraint, option_defs):
