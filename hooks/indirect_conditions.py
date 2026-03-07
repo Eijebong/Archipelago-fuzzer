@@ -6,8 +6,8 @@ class MissingIndirectConditionError(Exception):
     pass
 
 
-def get_spheres_locations(mw: MultiWorld) -> list[frozenset[str]]:
-    return [frozenset(loc.name for loc in sphere) for sphere in mw.get_spheres()]
+def get_spheres_locations(mw: MultiWorld) -> list[frozenset[tuple[str, int]]]:
+    return [frozenset((loc.name, loc.player) for loc in sphere) for sphere in mw.get_spheres()]
 
 
 class Hook(BaseHook):
@@ -46,9 +46,9 @@ class Hook(BaseHook):
                 missing = im - e
                 extra = e - im
                 if missing:
-                    diffs.append(f"  Sphere {i}: implicit has {len(missing)} locations not in explicit: {sorted(missing)[:10]}")
+                    diffs.append(f"  Sphere {i}: implicit has {len(missing)} locations not in explicit: {sorted(missing, key=str)[:10]}")
                 if extra:
-                    diffs.append(f"  Sphere {i}: explicit has {len(extra)} locations not in implicit: {sorted(extra)[:10]}")
+                    diffs.append(f"  Sphere {i}: explicit has {len(extra)} locations not in implicit: {sorted(extra, key=str)[:10]}")
             if len(explicit_spheres) != len(implicit_spheres):
                 diffs.append(f"  Sphere count: explicit={len(explicit_spheres)}, implicit={len(implicit_spheres)}")
 
