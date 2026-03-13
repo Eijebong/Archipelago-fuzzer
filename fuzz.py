@@ -441,12 +441,6 @@ def get_random_value(name, option):
         # See, I was already afraid with item_links but now it's plain terror. Let's not ever touch this ever.
         return option.default
 
-    if name == "gfxmod":
-        # XXX: LADX has this and it should be a choice but is freetext for some reason...
-        # Putting invalid values here means the gen fails even though it doesn't affect any logic
-        # Just return Link for now.
-        return "Link"
-
     if issubclass(option, OptionCounter):
         # ItemDict subclasses like StartInventory might not have valid_keys and
         # instead rely on verify_item_name for runtime validation against world.item_names
