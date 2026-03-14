@@ -36,6 +36,11 @@ import Utils
 import settings
 
 from Generate import main as GenMain
+try:
+    from Generate import PlayerFilesError
+except ImportError:
+    class PlayerFilesError(Exception):
+        pass
 from Fill import FillError
 from Main import main as ERmain
 from settings import get_settings
@@ -595,6 +600,10 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
                 if raised:
                     is_timeout = isinstance(raised, TimeoutError)
                     is_option_error = exception_in_causes(raised, OptionError)
+                    if not is_option_error and isinstance(raised, PlayerFilesError):
+                        is_option_error = all(
+                            exception_in_causes(e, OptionError) for e in raised.exceptions
+                        )
 
                     if is_timeout:
                         outcome = GenOutcome.Timeout
@@ -614,6 +623,8 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
 
                 if outcome == GenOutcome.Timeout:
                     extra = f"[...] Generation killed here after {args.timeout}s"
+                elif isinstance(raised, PlayerFilesError):
+                    extra = str(raised)
                 else:
                     extra = "".join(traceback.format_exception(raised))
 
