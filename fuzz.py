@@ -569,6 +569,10 @@ def gen_wrapper(yaml_path, apworld_name, i, args, queue, tmp):
                         hook.setup_worker(args)
                         MP_HOOKS.append(hook)
 
+                # Since 74f41e37, Generate.main no longer calls init_logging
+                # when imported as a module, so we have to do it ourselves.
+                patched_init_logging("Fuzzer")
+
                 if timer:
                     timer.start()
 
