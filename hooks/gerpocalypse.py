@@ -3,8 +3,21 @@ from worlds import AutoWorldRegister, WorldSource
 from Utils import __version__ as ap_version
 import worlds
 import os
+import sys
 import tempfile
 import shutil
+import zipimport
+import importlib.abc
+import importlib.machinery
+from pathlib import Path
+
+_dynamic_apworld_specs = {}
+
+class _DynamicAPWorldFinder(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, _path=None, _target=None):
+        return _dynamic_apworld_specs.get(fullname)
+
+sys.meta_path.insert(0, _DynamicAPWorldFinder())
 
 def refresh_netdata_package():
     for world_name, world in AutoWorldRegister.world_types.items():
@@ -32,9 +45,13 @@ Kingdom Hearts: {}
 
     def setup_worker(self, args):
         if 'Kingdom Hearts' not in AutoWorldRegister.world_types:
-            # File should already be copied by setup_main, just load it if it's there
             target_path = "/ap/archipelago/worlds/kh1.apworld"
             if os.path.exists(target_path):
+                world_name = Path(target_path).stem
+                importer = zipimport.zipimporter(target_path)
+                spec = importer.find_spec(f"worlds.{world_name}")
+                _dynamic_apworld_specs[f"worlds.{world_name}"] = spec
+
                 world_source = WorldSource(target_path, is_zip=True, relative=False)
                 if not world_source.load():
                     raise RuntimeError(f"Failed to load kh1.apworld from {target_path}. Check logs for details.")
