@@ -836,13 +836,23 @@ if __name__ == "__main__":
     def main(p, args, tmp):
         global SUBMITTED
 
-        apworld_name = args.game
+        if args.sample_from:
+            if args.game:
+                raise Exception(
+                    "--sample-from is incompatible with -g/--game"
+                )
+            if args.meta:
+                raise Exception(
+                    "--sample-from is incompatible with -m/--meta"
+                )
+
         if args.meta:
             with open(args.meta, "r", encoding='utf-8-sig') as fd:
                 meta = yaml.safe_load(fd.read())
         else:
             meta = {}
 
+        apworld_name = args.game
         if apworld_name is not None:
             world = world_from_apworld_name(apworld_name)
             if world is None:
@@ -891,6 +901,30 @@ if __name__ == "__main__":
                 with open(path, "r", encoding='utf-8-sig') as fd:
                     static_yamls.append(fd.read())
 
+        sample_yamls = []
+        if args.sample_from:
+            for yaml_file in os.listdir(args.sample_from):
+                path = os.path.join(args.sample_from, yaml_file)
+                if not os.path.isfile(path):
+                    continue
+                with open(path, "r", encoding='utf-8-sig') as fd:
+                    raw = fd.read()
+                try:
+                    docs = list(yaml.safe_load_all(raw))
+                except yaml.YAMLError as e:
+                    raise Exception(f"Failed to parse {path}: {e}") from e
+                for doc in docs:
+                    if isinstance(doc, dict) and 'name' in doc:
+                        doc['name'] = 'Player{number}'
+                sample_yamls.append((yaml_file, yaml.safe_dump_all(docs, sort_keys=False)))
+            if not sample_yamls:
+                raise Exception(
+                    f"--sample-from directory {args.sample_from!r} contains no YAML files"
+                )
+            if yamls_per_run_bounds[-1] > len(sample_yamls):
+                raise Exception(
+                    f"--sample-from has {len(sample_yamls)} YAML(s) but -n requests up to {yamls_per_run_bounds[-1]}"
+                )
 
         global MANAGER
         MANAGER = multiprocessing.Manager()
@@ -922,11 +956,6 @@ if __name__ == "__main__":
         timeout_handler.start()
 
         while i < args.runs:
-            if apworld_name is None:
-                actual_apworld = random.choice(valid_worlds)
-            else:
-                actual_apworld = apworld_name
-
             if len(yamls_per_run_bounds) == 1:
                 yamls_this_run = yamls_per_run_bounds[0]
             else:
@@ -935,9 +964,24 @@ if __name__ == "__main__":
                     yamls_per_run_bounds[0], yamls_per_run_bounds[1] + 1
                 )
 
-            random_yamls = [
-                generate_random_yaml(actual_apworld, meta) for _ in range(yamls_this_run)
-            ]
+            if args.sample_from:
+                actual_apworld = "sample"
+                yamls_to_write = [
+                    (f"sample-{i}-{nb}-{orig_name}", content)
+                    for nb, (orig_name, content) in enumerate(
+                        random.sample(sample_yamls, yamls_this_run)
+                    )
+                ]
+            else:
+                if apworld_name is None:
+                    actual_apworld = random.choice(valid_worlds)
+                else:
+                    actual_apworld = apworld_name
+
+                yamls_to_write = [
+                    (f"{i}-{nb}.yaml", generate_random_yaml(actual_apworld, meta))
+                    for nb in range(yamls_this_run)
+                ]
 
             if i % 100 == 0:
                 clear_abc_caches()
@@ -945,8 +989,8 @@ if __name__ == "__main__":
             SUBMITTED += 1
 
             yamls_dir = tempfile.mkdtemp(prefix="apfuzz", dir=tmp)
-            for nb, yaml_content in enumerate(random_yamls):
-                yaml_path = os.path.join(yamls_dir, f"{i}-{nb}.yaml")
+            for name, yaml_content in yamls_to_write:
+                yaml_path = os.path.join(yamls_dir, name)
                 open(yaml_path, "wb").write(yaml_content.encode("utf-8"))
 
             for nb, yaml_content in enumerate(static_yamls):
@@ -980,6 +1024,8 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--meta", default=None, type=None)
     parser.add_argument("--dump-ignored", default=False, action="store_true")
     parser.add_argument("--with-static-worlds", default=None)
+    parser.add_argument("--sample-from", default=None,
+                        help="Directory of YAML files to sample from instead of generating random YAMLs. Each generation picks N (see -n) random files from the directory. Incompatible with -g and -m")
     parser.add_argument("--hook", action="append", default=[])
     parser.add_argument("--skip-output", default=False, action="store_true")
 

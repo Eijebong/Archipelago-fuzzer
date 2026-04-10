@@ -29,6 +29,10 @@ The output will be available in `./fuzz_output`.
 - `--skip-output` specifies to skip the output step of generation.
 - `--dump-ignored` makes it so option errors are also dumped in the result.
 - `--with-static-worlds` takes a path to a directory containing YAML to include in every generation. Not recursive.
+- `--sample-from` takes a path to a directory of YAML files to sample from
+  instead of generating random YAMLs. Each generation picks N random files from
+  the directory (see `-n`). Not recursive. Incompatible with `-g` and with `-m`.
+  Composes with `--with-static-worlds`.
 - `--hook` takes a `module:class` string to a hook and can be specified multiple times. More information about that below
 
 ## Meta files
