@@ -18,12 +18,15 @@ The output will be available in `./fuzz_output`.
 
 ## Flags
 
-- `-g` selects the apworld to fuzz. If omitted, every run will take a random loaded world
+- `-g` selects the apworld to fuzz. If omitted, every run will take a random
+  loaded world. Can be passed multiple times (e.g. `-g alttp -g pokemon_crystal`)
+  to fuzz several games together; each generation will include N (see `-n`)
+  YAMLs for each listed game.
 - `-j` specifies the number of jobs to run in parallel. Defaults to 10, recommended value is the number of cores of your CPU.
 - `-r` specifies the number of generations to do. This is a mandatory setting
-- `-n` specifies how many YAMLs to use per generation. Defaults to 1. You can
-  also specify ranges like `1-10` to make all generations pick a number between
-  1 and 10 YAMLs.
+- `-n` specifies how many YAMLs to use per generation (per selected game).
+  Defaults to 1. You can also specify ranges like `1-10` to make all
+  generations pick a number between 1 and 10 YAMLs.
 - `-t` specifies the maximum time per generation in seconds. Defaults to 15s.
 - `-m` to specify a meta file that overrides specific values
 - `--skip-output` specifies to skip the output step of generation.

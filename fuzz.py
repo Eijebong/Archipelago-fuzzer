@@ -852,12 +852,11 @@ if __name__ == "__main__":
         else:
             meta = {}
 
-        apworld_name = args.game
-        if apworld_name is not None:
-            world = world_from_apworld_name(apworld_name)
-            if world is None:
+        apworld_names = list(dict.fromkeys(args.game))
+        for apworld in apworld_names:
+            if world_from_apworld_name(apworld) is None:
                 raise Exception(
-                    f"Failed to resolve apworld from apworld name: {apworld_name}"
+                    f"Failed to resolve apworld from apworld name: {apworld}"
                 )
 
         if os.path.exists(OUT_DIR):
@@ -973,14 +972,21 @@ if __name__ == "__main__":
                     )
                 ]
             else:
-                if apworld_name is None:
-                    actual_apworld = random.choice(valid_worlds)
+                if not apworld_names:
+                    games_this_run = [random.choice(valid_worlds)]
                 else:
-                    actual_apworld = apworld_name
+                    games_this_run = apworld_names
+
+                if len(games_this_run) == 1:
+                    actual_apworld = games_this_run[0]
+                else:
+                    actual_apworld = "multi"
 
                 yamls_to_write = [
-                    (f"{i}-{nb}.yaml", generate_random_yaml(actual_apworld, meta))
-                    for nb in range(yamls_this_run)
+                    (f"{i}-{nb}.yaml", generate_random_yaml(game, meta))
+                    for nb, game in enumerate(
+                        g for g in games_this_run for _ in range(yamls_this_run)
+                    )
                 ]
 
             if i % 100 == 0:
@@ -1016,7 +1022,8 @@ if __name__ == "__main__":
             time.sleep(0.05)
 
     parser = ArgumentParser(prog="apfuzz")
-    parser.add_argument("-g", "--game", default=None)
+    parser.add_argument("-g", "--game", default=[], action="append",
+                        help="Restrict to a given apworld. Can be passed multiple times to fuzz several games together; each generation will include N (see -n) YAMLs for each listed game.")
     parser.add_argument("-j", "--jobs", default=10, type=int)
     parser.add_argument("-r", "--runs", type=int, required=True)
     parser.add_argument("-n", "--yamls_per_run", default="1", type=str)
