@@ -433,6 +433,68 @@ def generate_random_yaml(world_name, meta):
     return res
 
 
+_UNSUPPORTED = object()
+
+
+def _extract_schema_properties(option):
+    schema_obj = getattr(option, "schema", None)
+    if schema_obj is None:
+        return {}, [], []
+
+    js = schema_obj.json_schema("")
+    properties = js.get("properties", {})
+    required = [k for k in js.get("required", []) if k in properties]
+    optional = [k for k in properties if k not in required]
+    return properties, required, optional
+
+
+def _random_value_for_property(prop, fallback_min, fallback_max):
+    if "enum" in prop:
+        choices = prop["enum"]
+        return random.choice(choices) if choices else _UNSUPPORTED
+
+    if "anyOf" in prop:
+        return _random_value_for_property(random.choice(prop["anyOf"]), fallback_min, fallback_max)
+
+    types = prop.get("type")
+    if isinstance(types, list):
+        type_ = random.choice(types)
+    else:
+        type_ = types
+
+    if type_ == "integer":
+        lo = prop.get("minimum", fallback_min)
+        hi = prop.get("maximum", fallback_max)
+        if lo > hi:
+            return _UNSUPPORTED
+        return random.randint(lo, hi)
+
+    if type_ == "number":
+        lo = prop.get("minimum", fallback_min)
+        hi = prop.get("maximum", fallback_max)
+        if lo > hi:
+            return _UNSUPPORTED
+        return random.uniform(lo, hi)
+
+    if type_ == "boolean":
+        return random.choice([True, False])
+
+    if type_ == "string":
+        # we can't reasonably generate random strings with a format/regex
+        if "pattern" in prop or "format" in prop:
+            return _UNSUPPORTED
+        lo = prop.get("minLength", 0)
+        hi = prop.get("maxLength", max(lo, 10))
+        if lo > hi:
+            return _UNSUPPORTED
+        return "".join(random.choice(string.ascii_lowercase) for _ in range(random.randint(lo, hi)))
+
+    if type_ == "null":
+        return None
+
+    return _UNSUPPORTED
+
+
 def get_random_value(name, option):
     if name == "item_links":
         # Let's not fuck with item links right now, I'm scared
@@ -448,16 +510,33 @@ def get_random_value(name, option):
 
     if issubclass(option, OptionCounter):
         # ItemDict subclasses like StartInventory might not have valid_keys and
-        # instead rely on verify_item_name for runtime validation against world.item_names
-        if not option.valid_keys:
-            return option.default
-        selected_keys = random.sample(
-            list(option.valid_keys),
-            k=random.randint(0, len(option.valid_keys))
-        )
+        # instead rely on verify_item_name for runtime validation against world.item_names.
+        # Some OptionCounter subclasses define a
+        # schema.Schema({...}) instead, from which we can extract the allowed keys from.
         min_val = option.min if option.min is not None else 0
         max_val = option.max if option.max is not None else 1000
-        return {key: random.randint(min_val, max_val) for key in selected_keys}
+        if option.valid_keys:
+            keys = list(option.valid_keys)
+            selected_keys = random.sample(keys, k=random.randint(0, len(keys)))
+            return {key: random.randint(min_val, max_val) for key in selected_keys}
+
+        properties, required, optional = _extract_schema_properties(option)
+        if not properties:
+            return option.default
+
+        picked_optional = random.sample(optional, k=random.randint(0, len(optional)))
+        result = {}
+        for key in required + picked_optional:
+            value = _random_value_for_property(properties[key], min_val, max_val)
+            if value is _UNSUPPORTED:
+                has_default = isinstance(option.default, dict) and key in option.default
+                if not has_default and key in required:
+                    return option.default
+                if has_default:
+                    result[key] = option.default[key]
+                continue
+            result[key] = value
+        return result
 
     if issubclass(option, OptionDict):
         # This is for example factorio's start_items and worldgen settings. I don't think it's worth randomizing those as I'm not expecting the generation outcome to change from them.
