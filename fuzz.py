@@ -829,7 +829,7 @@ def print_status():
     print("Timeouts:", TIMEOUTS)
     print("Ignored:", OPTION_ERRORS)
     print()
-    print("Time taken:{:.2f}s".format(time.perf_counter() - START))
+    print("Time taken: {:.2f}s".format(time.perf_counter() - START))
 
 
 def find_hook(hook_path):
