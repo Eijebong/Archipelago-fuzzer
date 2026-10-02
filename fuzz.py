@@ -17,6 +17,7 @@ from Options import (
     Choice,
     Toggle,
     Range,
+    NamedRange,
     ItemSet,
     ItemDict,
     LocationSet,
@@ -549,6 +550,9 @@ def get_random_value(name, option):
             valid_choices = list(option.options.keys())
 
         return random.choice(valid_choices)
+
+    if issubclass(option, NamedRange) and option.special_range_names and random.random() < 0.25:
+        return random.choice(list(option.special_range_names.values()))
 
     if issubclass(option, Range):
         return random.randint(option.range_start, option.range_end)
