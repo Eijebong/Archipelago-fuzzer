@@ -17,6 +17,7 @@ from Options import (
     Choice,
     Toggle,
     Range,
+    NamedRange,
     ItemSet,
     ItemDict,
     LocationSet,
@@ -308,8 +309,15 @@ def _handle_requires_any(option_name, option_value, constraint, mutual_exclusion
         option_value.append(choice)
 
 
+def _is_in_range(option_def, value):
+    return isinstance(value, int) and option_def.range_start <= value <= option_def.range_end
+
+
 def _handle_sum_cap(game_options, constraint, option_defs):
-    all_option_names = [o for o in constraint["sum_cap"] if o in game_options]
+    # Special values outside the range don't represent a quantity, so leave them out of the sum
+    all_option_names = [
+        o for o in constraint["sum_cap"] if o in game_options and _is_in_range(option_defs[o], game_options[o])
+    ]
     cap = int(constraint["max_capacity"])
     total = sum(game_options[o] for o in all_option_names)
 
@@ -331,8 +339,8 @@ def _handle_sum_cap(game_options, constraint, option_defs):
 def _handle_max_count_of(game_options, option_name, option_value, constraint, option_defs):
     other_value = game_options[constraint["max_count_of"]]
     cap = len(other_value)
-    if option_value > cap:
-        option_def = option_defs[option_name]
+    option_def = option_defs[option_name]
+    if _is_in_range(option_def, option_value) and option_value > cap:
         if cap < option_def.range_start:
             game_options[option_name] = cap
         else:
@@ -343,8 +351,8 @@ def _handle_max_remaining_from(game_options, option_name, option_value, constrai
     other_value = game_options[constraint["max_remaining_from"]]
     max_capacity = int(constraint["max_capacity"])
     cap = max_capacity - len(other_value)
-    if option_value > cap:
-        option_def = option_defs[option_name]
+    option_def = option_defs[option_name]
+    if _is_in_range(option_def, option_value) and option_value > cap:
         if cap < option_def.range_start:
             game_options[option_name] = cap
         else:
@@ -549,6 +557,22 @@ def get_random_value(name, option):
             valid_choices = list(option.options.keys())
 
         return random.choice(valid_choices)
+
+    if issubclass(option, NamedRange) and option.special_range_names:
+        # Treat each special value outside the range as its own choice, alongside one choice for a value in the range
+        special_values = sorted(set(option.special_range_names.values()))
+        inside_range = [value for value in special_values if _is_in_range(option, value)]
+        outside_range = [value for value in special_values if not _is_in_range(option, value)]
+
+        choice = random.randrange(len(outside_range) + 1)
+        if choice < len(outside_range):
+            return outside_range[choice]
+
+        # Bias towards special values within the range, in case they need special handling
+        if inside_range and random.random() < 0.25:
+            return random.choice(inside_range)
+
+        return random.randint(option.range_start, option.range_end)
 
     if issubclass(option, Range):
         return random.randint(option.range_start, option.range_end)
