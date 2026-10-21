@@ -4,6 +4,9 @@ import sys
 import os
 
 ap_path = os.path.abspath(os.path.dirname(sys.argv[0]))
+# If we're not inside an AP checkout, assume we're being run from one
+if not os.path.isdir(os.path.join(ap_path, "worlds")):
+    ap_path = os.getcwd()
 sys.path.insert(0, ap_path)
 
 # Prevent multiprocess workers from spamming nonsense when KeyboardInterrupted
